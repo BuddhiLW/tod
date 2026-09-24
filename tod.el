@@ -53,20 +53,20 @@
 (require 'tod-palette)
 (require 'xdg)
 
-
-
 (defgroup tod nil
   "Themes and wallpapers that follow the sun and the seasons."
   :group 'faces
   :prefix "tod-")
 
 (defcustom tod-latitude nil
-  "Latitude in degrees, north positive, or nil to use `calendar-latitude'."
+  "Latitude in degrees, north positive.
+Nil means the value of the variable `calendar-latitude'."
   :type '(choice (const :tag "Use calendar-latitude" nil) number)
   :group 'tod)
 
 (defcustom tod-longitude nil
-  "Longitude in degrees, east positive, or nil to use `calendar-longitude'."
+  "Longitude in degrees, east positive.
+Nil means the value of the variable `calendar-longitude'."
   :type '(choice (const :tag "Use calendar-longitude" nil) number)
   :group 'tod)
 
@@ -365,7 +365,7 @@ LAT and LON give the place."
         (events (seq-filter (lambda (e)
     (and (not (time-less-p (clel-get e :time) start)) (time-less-p (clel-get e :time) end))) (tod-sun-events-around (time-add start 43200) lat lon (tod-moment-ladder-heights tod-phases)))))
     (mapcar (lambda (e)
-    (clel-str (format-time-string "%H:%M" (clel-get e :time)) " " (tod-event-label (clel-get e :height) (clel-get e :rising)))) events)))
+    (clel-str (format-time-string "%R" (clel-get e :time)) " " (tod-event-label (clel-get e :height) (clel-get e :rising)))) events)))
 
 ;;;###autoload
 (defun tod-diary-sun ()
@@ -389,7 +389,7 @@ its own timed agenda line."
     (let* ((look (tod-pick-look m))
         (loc (tod-location))
         (wake (tod-next-wakeup nil)))
-    (with-help-window "*tod*" (princ (format "Location   %.4f, %.4f\n" (clel-nth loc 0) (clel-nth loc 1))) (princ (format "Sun        %.1f° altitude, %.0f° bearing, %s\n" (clel-get m :altitude) (clel-get m :azimuth) (if (clel-get m :rising) "rising" "setting"))) (princ (format "Phase      %s\n" (tod--phase-label (clel-get m :phase)))) (princ (format "Season     %s (%d%% through)\n" (tod--phase-label (clel-get m :season)) (round (* 100 (clel-get m :season-progress))))) (princ (format "Periods    %s\n" (or (string-join (clel-get m :periods) ", ") ""))) (princ (format "Next check %s\n\n" (format-time-string "%F %H:%M" wake))) (princ "Today\n") (dolist (line (clel-seq (tod--format-events (tod-moment-local-date nil) (clel-nth loc 0) (clel-nth loc 1))))
+    (with-help-window "*tod*" (princ (format "Location   %.4f, %.4f\n" (clel-nth loc 0) (clel-nth loc 1))) (princ (format "Sun        %.1f° altitude, %.0f° bearing, %s\n" (clel-get m :altitude) (clel-get m :azimuth) (if (clel-get m :rising) "rising" "setting"))) (princ (format "Phase      %s\n" (tod--phase-label (clel-get m :phase)))) (princ (format "Season     %s (%d%% through)\n" (tod--phase-label (clel-get m :season)) (round (* 100 (clel-get m :season-progress))))) (princ (format "Periods    %s\n" (or (string-join (clel-get m :periods) ", ") ""))) (princ (format "Next check %s\n\n" (format-time-string "%F %R" wake))) (princ "Today\n") (dolist (line (clel-seq (tod--format-events (tod-moment-local-date nil) (clel-nth loc 0) (clel-nth loc 1))))
     (princ (clel-str "  " line "\n"))) (princ "\nLook\n") (princ (format "  theme      %s\n" (or (clel-get look :theme) "unchanged"))) (princ (format "  wallpaper  %s\n" (or (when (clel-get look :wallpaper)
     (tod-wallpaper-choose-file (clel-get look :wallpaper) m (tod-layout-root))) "none"))) (princ (format "  palette    %s\n" (or (clel-get look :palette) "theme's own"))) (princ (format "\nWallpaper setters (%s session, %s)\n" (or (tod-wallpaper-session-type) "unknown") (string-join (tod-wallpaper-desktop-names) ":"))) (dolist (s (clel-seq (tod-wallpaper-candidates tod-wallpaper-setters 'image (tod-wallpaper-session-type) (tod-wallpaper-desktop-names))))
     (let* ((why (tod-wallpaper-missing s)))

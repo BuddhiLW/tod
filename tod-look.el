@@ -30,8 +30,6 @@
            (if (boundp 'clel-runtime-version) clel-runtime-version "(pre-0.8.0)")
            "0.8.0")))
 
-
-
 (defun tod-look--member-or-eq (value actual)
   "Return non-nil when ACTUAL equals VALUE or is a member of it.
 VALUE is a single symbol or number, or a list of them."

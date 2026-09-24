@@ -26,8 +26,6 @@
            (if (boundp 'clel-runtime-version) clel-runtime-version "(pre-0.8.0)")
            "0.8.0")))
 
-
-
 (defvar tod-process--slots (make-hash-table :test 'eq)
   "Map from slot symbol to the process currently running in it.")
 

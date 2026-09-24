@@ -24,6 +24,12 @@
 (setq checkdoc-create-error-function #'lint-checkdoc--report)
 (setq checkdoc-autofix-flag 'never)
 
+;; Load every file first, as melpazoid does by byte-compiling before it runs
+;; checkdoc: a symbol that is both a function and a variable (such as
+;; `calendar-latitude') is only reported ambiguous once its library is loaded.
+(dolist (file command-line-args-left)
+  (load (expand-file-name file) nil t))
+
 (dolist (file command-line-args-left)
   (with-current-buffer (find-file-noselect file)
     (checkdoc-current-buffer t)))

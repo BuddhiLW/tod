@@ -31,11 +31,11 @@
 (require 'tod-process)
 (require 'json)
 
+(defvar tod-palette-semantic-hues (list (list :red 0.0) (list :orange 30.0) (list :yellow 55.0) (list :green 120.0) (list :cyan 185.0) (list :blue 220.0) (list :magenta 295.0))
+  "Semantic colour names and their target hues in degrees.")
 
-
-(defvar tod-palette-semantic-hues (list (list :red 0.0) (list :orange 30.0) (list :yellow 55.0) (list :green 120.0) (list :cyan 185.0) (list :blue 220.0) (list :magenta 295.0)) "Semantic colour names and their target hues in degrees.")
-
-(defvar tod-palette-warm-light "#ff9e3d" "Colour mixed into backgrounds while the sun is low.")
+(defvar tod-palette-warm-light "#ff9e3d"
+  "Colour mixed into backgrounds while the sun is low.")
 
 (defun tod-palette-read-wal (file)
   "Return pywal's palette in FILE as an alist, or nil when unreadable.

@@ -29,9 +29,8 @@
 (require 'calendar)
 (require 'holidays)
 
-
-
-(defvar tod-moment-default-ladder (list (list 'day 6.0) (list 'golden-hour -0.833) (list 'civil-twilight -6.0) (list 'nautical-twilight -12.0) (list 'astronomical-twilight -18.0) (list 'night -90.0)) "Phases of the day by the sun's minimum altitude in degrees.
+(defvar tod-moment-default-ladder (list (list 'day 6.0) (list 'golden-hour -0.833) (list 'civil-twilight -6.0) (list 'nautical-twilight -12.0) (list 'astronomical-twilight -18.0) (list 'night -90.0))
+  "Phases of the day by the sun's minimum altitude in degrees.
 Each entry is (PHASE MIN-ALTITUDE), highest first; the last entry
 catches everything below the one before it.")
 

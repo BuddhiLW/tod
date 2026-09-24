@@ -28,8 +28,6 @@
            "0.8.0")))
 (require 'tod-color)
 
-
-
 (declare-function modus-themes-generate-palette "modus-themes")
 
 (declare-function modus-themes-theme "modus-themes")

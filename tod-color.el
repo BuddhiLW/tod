@@ -25,8 +25,6 @@
            "0.8.0")))
 (require 'color)
 
-
-
 (defun tod-color-hex-to-rgb (hex)
   "Return the (R G B) floats in [0, 1] for the hex colour HEX.
 HEX is \"#rrggbb\" or \"#rgb\"; anything else returns nil."

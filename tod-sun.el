@@ -28,8 +28,6 @@
            "0.8.0")))
 (require 'solar)
 
-
-
 (defun tod-sun-utc-midnight (day)
   "Return the Lisp time of 00:00 UTC on DAY, a (MONTH DAY YEAR) list."
   (encode-time (list 0 0 0 (clel-nth day 1) (clel-nth day 0) (clel-nth day 2) nil nil t)))
