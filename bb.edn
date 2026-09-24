@@ -2,10 +2,11 @@
 ;; repository root, which is what MELPA packages. The .el files are committed;
 ;; `bb check-generated` fails when they drift from their sources.
 ;;
-;; The compiler dependency points at a local clojure-elisp checkout until the
-;; :elisp/package header feature is released to Clojars.
+;; The compiler is a git dependency pinned to a clojure-elisp release tag.
 {:deps {io.github.buddhilw/clojure-elisp
-        {:local/root "/home/klein/PP/clojure-elisp/.claude/worktrees/tod-ready"}}
+        {:git/url "https://github.com/BuddhiLW/clojure-elisp"
+         :git/tag "v0.8.0"
+         :git/sha "679442cd4f784f78f900caa57c3c03d2f2e0c2c1"}}
 
  :tasks
  {:requires ([babashka.fs :as fs]
