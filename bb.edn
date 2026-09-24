@@ -76,6 +76,11 @@
              (println "tod*.el is stale: run `bb compile` and commit the result")
              (System/exit exit)))}
 
+  package-lint
+  {:doc "Run package-lint (installed from MELPA into .cache/elpa)"
+   :depends [compile runtime]
+   :task (apply emacs! (concat ["-l" "scripts/lint-package.el"] (el-files)))}
+
   lint
   {:doc "byte-compile + checkdoc + package-lint"
-   :depends [byte-compile checkdoc]}}}
+   :depends [byte-compile checkdoc package-lint]}}}
