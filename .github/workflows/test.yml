@@ -20,7 +20,7 @@ jobs:
         run: |
           mkdir -p .cache
           curl -fsSL -o .cache/clel.el \
-            https://raw.githubusercontent.com/BuddhiLW/clojure-elisp/v0.8.0/resources/clojure-elisp/clel.el
+            https://raw.githubusercontent.com/BuddhiLW/clojure-elisp/v0.8.1/resources/clojure-elisp/clel.el
       - name: Byte-compile, warnings as errors
         run: |
           emacs -Q --batch -L . -L .cache \

@@ -5,8 +5,8 @@
 ;; The compiler is a git dependency pinned to a clojure-elisp release tag.
 {:deps {io.github.buddhilw/clojure-elisp
         {:git/url "https://github.com/BuddhiLW/clojure-elisp"
-         :git/tag "v0.8.0"
-         :git/sha "679442cd4f784f78f900caa57c3c03d2f2e0c2c1"}}
+         :git/tag "v0.8.1"
+         :git/sha "54eb7021b6430254d3aecab63d87b3ed0aa542c8"}}
 
  :tasks
  {:requires ([babashka.fs :as fs]

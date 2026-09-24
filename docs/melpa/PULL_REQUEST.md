@@ -70,5 +70,5 @@ The repository has been public since 2026-09-24, so the month runs to
 
 1. clel on MELPA (see clojure-elisp `docs/melpa/PULL_REQUEST.md`).
 2. BuddhiLW/tod public (2026-09-24); CI fetches clel.el from the clojure-elisp
-   v0.8.0 tag.
+   v0.8.1 tag, the release whose clel.el passes checkdoc on Emacs 28 to 31.
 3. This pull request, a draft until clel is in MELPA and the month has passed.
