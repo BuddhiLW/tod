@@ -67,7 +67,7 @@
      argv)))
 
 (defun tod-wallpaper-setter-commands (setter path)
-  "Return the argument lists SETTER runs to show PATH."
+  "Return the command argument lists through which SETTER displays PATH."
   (let* ((commands (clel-get setter :commands)))
     (if (functionp commands)
         (funcall commands path)
@@ -196,7 +196,7 @@ swaybg runs until killed, so it is detached from Emacs with setsid."
         (list "setsid" "-f" "swaybg" "-m" "fill" "-i" (expand-file-name path))))
 
 (defun tod-wallpaper--hyprpaper-commands (path)
-  "Return the hyprctl command that shows PATH on every monitor."
+  "Return the hyprctl command to display PATH on every monitor."
   (list
    (list "hyprctl"
          "hyprpaper"

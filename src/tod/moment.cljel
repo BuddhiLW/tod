@@ -29,7 +29,7 @@ LADDER is a list of (PHASE MIN-ALTITUDE), highest first."
     (first (or step (last ladder)))))
 
 (defn ladder-heights
-  "Return the altitudes at which LADDER changes phase.
+  "Return the altitudes of the phase boundaries in LADDER.
 The lowest step has no lower boundary, so it contributes nothing."
   [ladder]
   (mapcar (fn [s] (second s)) (butlast ladder)))

@@ -45,7 +45,7 @@ and new ones only need registering."
             argv)))
 
 (defn setter-commands
-  "Return the argument lists SETTER runs to show PATH."
+  "Return the command argument lists through which SETTER displays PATH."
   [setter path]
   (let [commands (get setter :commands)]
     (if (functionp commands)
@@ -166,7 +166,7 @@ swaybg runs until killed, so it is detached from Emacs with setsid."
         (list "setsid" "-f" "swaybg" "-m" "fill" "-i" (expand-file-name path))))
 
 (defn- hyprpaper-commands
-  "Return the hyprctl command that shows PATH on every monitor."
+  "Return the hyprctl command to display PATH on every monitor."
   [path]
   (list (list "hyprctl" "hyprpaper" "wallpaper" (str "," (expand-file-name path)))))
 

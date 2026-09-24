@@ -69,7 +69,7 @@ The result lies in [1, 21]."
        (+ (min la lb) 0.05))))
 
 (defn dark-p
-  "Return non-nil when the hex colour HEX reads as a dark background.
+  "Return non-nil when the hex colour HEX counts as a dark background.
 Dark means white text contrasts with HEX more than black text does."
   [hex]
   (< (luminance hex) 0.179))

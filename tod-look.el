@@ -86,7 +86,7 @@ either end means unbounded."
     (and (or (null lo) (>= a lo)) (or (null hi) (< a hi)))))
 
 (defun tod-look-match-predicate (value moment)
-  "Return non-nil when the function VALUE returns non-nil for MOMENT."
+  "Return the result of calling the function VALUE with MOMENT."
   (funcall value moment))
 
 (defvar tod-look-criteria
@@ -116,7 +116,7 @@ usable in `tod-looks'.")
     (recur rule nil)))
 
 (defun tod-look-rule-matches-p (rule moment criteria)
-  "Return non-nil when every criterion of RULE holds for MOMENT.
+  "Return non-nil when MOMENT satisfies every criterion of RULE.
 CRITERIA is an alist of (KEY . FUNCTION) as in `tod-look-criteria'."
   (seq-every-p
    (lambda (k)

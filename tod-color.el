@@ -76,7 +76,7 @@ The result lies in [1, 21]."
     (/ (+ (max la lb) 0.05) (+ (min la lb) 0.05))))
 
 (defun tod-color-dark-p (hex)
-  "Return non-nil when the hex colour HEX reads as a dark background.
+  "Return non-nil when the hex colour HEX counts as a dark background.
 Dark means white text contrasts with HEX more than black text does."
   (< (tod-color-luminance hex) 0.179))
 

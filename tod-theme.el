@@ -108,7 +108,7 @@ of default colours; it is loaded first when it has no settings yet."
   (list face (list (cons t attrs))))
 
 (defun tod-theme--readable-background (bg tint fg)
-  "Return a background near BG tinted towards TINT that keeps FG legible.
+  "Return a background near BG, tinted towards TINT, where FG stays legible.
 The tint is reduced until FG reaches a contrast of 4.5 on it."
   (let* ((candidate
           (seq-find

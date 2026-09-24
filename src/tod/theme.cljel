@@ -90,7 +90,7 @@ of default colours; it is loaded first when it has no settings yet."
   (list face (list (cons true attrs))))
 
 (defn- readable-background
-  "Return a background near BG tinted towards TINT that keeps FG legible.
+  "Return a background near BG, tinted towards TINT, where FG stays legible.
 The tint is reduced until FG reaches a contrast of 4.5 on it."
   [bg tint fg]
   (let [candidate (seq-find (fn [f] (>= (color/contrast fg (color/mix bg tint f)) 4.5))

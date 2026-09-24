@@ -49,7 +49,7 @@ LADDER is a list of (PHASE MIN-ALTITUDE), highest first."
     (clel-first (or step (clel-last ladder)))))
 
 (defun tod-moment-ladder-heights (ladder)
-  "Return the altitudes at which LADDER changes phase.
+  "Return the altitudes of the phase boundaries in LADDER.
 The lowest step has no lower boundary, so it contributes nothing."
   (mapcar (lambda (s) (clel-second s)) (clel-butlast ladder)))
 

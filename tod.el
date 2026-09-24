@@ -220,7 +220,7 @@ Each is called with the new phase, the old phase and the moment."
                             (expand-file-name "~/Pictures")))))
 
 (defun tod-cache-directory ()
-  "Return the directory tod keeps extracted frames and palettes in."
+  "Return the directory for tod's extracted frames and palettes."
   (expand-file-name "tod"
                     (or (getenv "XDG_CACHE_HOME")
                         (expand-file-name "~/.cache"))))
@@ -595,7 +595,7 @@ The next boundary restores the real look."
 
 ;;;###autoload
 (defun tod-install-themes ()
-  "Install the ef-themes collection, which the default looks prefer."
+  "Install the ef-themes collection, which tod's defaults prefer."
   (interactive)
   (when (y-or-n-p "Install ef-themes from GNU ELPA? ")
     (package-install 'ef-themes)))

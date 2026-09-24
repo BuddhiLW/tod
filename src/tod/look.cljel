@@ -77,7 +77,7 @@ either end means unbounded."
          (or (null hi) (< a hi)))))
 
 (defn match-predicate
-  "Return non-nil when the function VALUE returns non-nil for MOMENT."
+  "Return the result of calling the function VALUE with MOMENT."
   [value moment]
   (funcall value moment))
 
@@ -110,7 +110,7 @@ usable in `tod-looks'.")
       (nreverse acc))))
 
 (defn rule-matches-p
-  "Return non-nil when every criterion of RULE holds for MOMENT.
+  "Return non-nil when MOMENT satisfies every criterion of RULE.
 CRITERIA is an alist of (KEY . FUNCTION) as in `tod-look-criteria'."
   [rule moment criteria]
   (seq-every-p (fn [k]
