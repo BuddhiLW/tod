@@ -65,20 +65,7 @@
   checkdoc
   {:doc "Run checkdoc over every tod*.el; any diagnostic fails"
    :depends [compile]
-   :task (apply emacs! (concat
-                        ["--eval"
-                         (str "(let ((bad 0))"
-                              "  (dolist (f command-line-args-left)"
-                              "    (with-current-buffer (find-file-noselect f)"
-                              "      (let ((checkdoc-diagnostic-buffer \"*tod-checkdoc*\"))"
-                              "        (checkdoc-current-buffer t))"
-                              "      (with-current-buffer (get-buffer-create \"*tod-checkdoc*\")"
-                              "        (let ((s (buffer-string)))"
-                              "          (when (string-match-p \"^[^ \\n].*:[0-9]+: \" s)"
-                              "            (setq bad (1+ bad)) (princ s))))))"
-                              "  (setq command-line-args-left nil)"
-                              "  (kill-emacs (if (> bad 0) 1 0)))")]
-                        (el-files)))}
+   :task (apply emacs! (concat ["-l" "scripts/lint-checkdoc.el"] (el-files)))}
 
   check-generated
   {:doc "Fail when the committed tod*.el differ from what src/ compiles to"

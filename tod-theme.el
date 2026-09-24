@@ -31,7 +31,8 @@
   "Overrides for `tod-theme-palette'.")
 
 (defun tod-theme-color-scheme-p (theme)
-  "Return non-nil when THEME is a colour scheme.\nThemes that do not declare their :kind are assumed to be one."
+  "Return non-nil when THEME is a colour scheme.
+Themes that do not declare their :kind are assumed to be one."
   (memq (plist-get (get theme 'theme-properties) :kind) (list 'color-scheme nil)))
 
 (defun tod-theme-loaded-p (theme)
@@ -48,7 +49,9 @@
     (and (not (eq th theme)) (tod-theme-color-scheme-p th))) custom-enabled-themes))))
 
 (defun tod-theme-switch (theme)
-  "Make THEME the only enabled colour scheme and return it.\nTHEME is enabled before the others are disabled, which avoids a flash\nof default colours; it is loaded first when it has no settings yet."
+  "Make THEME the only enabled colour scheme and return it.
+THEME is enabled before the others are disabled, which avoids a flash
+of default colours; it is loaded first when it has no settings yet."
   (if (tod-theme-enabled-alone-p theme) nil (progn
   (let* ((tod-theme--applying t))
     (if (tod-theme-loaded-p theme) (enable-theme theme) (load-theme theme t))
@@ -70,7 +73,8 @@
   (list face (list (cons t attrs))))
 
 (defun tod-theme--readable-background (bg tint fg)
-  "Return a background near BG tinted towards TINT that keeps FG legible.\nThe tint is reduced until FG reaches a contrast of 4.5 on it."
+  "Return a background near BG tinted towards TINT that keeps FG legible.
+The tint is reduced until FG reaches a contrast of 4.5 on it."
   (let* ((candidate (seq-find (lambda (f)
     (>= (tod-color-contrast fg (tod-color-mix bg tint f)) 4.5)) (list 0.35 0.25 0.18 0.12 0.08 0.0))))
     (tod-color-mix bg tint (or candidate 0.0))))
@@ -86,7 +90,9 @@
     (list (tod-theme--spec 'default (list :background bg :foreground fg)) (tod-theme--spec 'cursor (list :background (clel-get palette :cursor))) (tod-theme--spec 'region (list :background region :extend t)) (tod-theme--spec 'hl-line (list :background subtle :extend t)) (tod-theme--spec 'fringe (list :background bg)) (tod-theme--spec 'vertical-border (list :foreground bar)) (tod-theme--spec 'mode-line (list :background bar :foreground fg)) (tod-theme--spec 'mode-line-inactive (list :background subtle :foreground dim)) (tod-theme--spec 'minibuffer-prompt (list :foreground (clel-get palette :blue) :weight 'bold)) (tod-theme--spec 'link (list :foreground (clel-get palette :blue) :underline t)) (tod-theme--spec 'shadow (list :foreground dim)) (tod-theme--spec 'error (list :foreground (clel-get palette :red) :weight 'bold)) (tod-theme--spec 'warning (list :foreground (clel-get palette :orange) :weight 'bold)) (tod-theme--spec 'success (list :foreground (clel-get palette :green) :weight 'bold)) (tod-theme--spec 'font-lock-comment-face (list :foreground dim :slant 'italic)) (tod-theme--spec 'font-lock-doc-face (list :foreground dim)) (tod-theme--spec 'font-lock-string-face (list :foreground (clel-get palette :green))) (tod-theme--spec 'font-lock-keyword-face (list :foreground (clel-get palette :magenta))) (tod-theme--spec 'font-lock-builtin-face (list :foreground (clel-get palette :magenta))) (tod-theme--spec 'font-lock-function-name-face (list :foreground (clel-get palette :blue))) (tod-theme--spec 'font-lock-variable-name-face (list :foreground (clel-get palette :cyan))) (tod-theme--spec 'font-lock-type-face (list :foreground (clel-get palette :yellow))) (tod-theme--spec 'font-lock-constant-face (list :foreground (clel-get palette :orange))) (tod-theme--spec 'font-lock-warning-face (list :foreground (clel-get palette :red))) (tod-theme--spec 'line-number (list :foreground dim :background bg)) (tod-theme--spec 'line-number-current-line (list :foreground fg :weight 'bold)) (tod-theme--spec 'show-paren-match (list :background (tod-theme--readable-background bg (clel-get palette :cyan) fg))) (tod-theme--spec 'isearch (list :background (tod-theme--readable-background bg (clel-get palette :yellow) fg) :weight 'bold)) (tod-theme--spec 'lazy-highlight (list :background (tod-theme--readable-background bg (clel-get palette :cyan) fg))))))
 
 (defun tod-theme-define-palette-theme (name palette)
-  "Define or redefine the theme NAME from PALETTE and return NAME.\nPALETTE comes from `tod-palette-semantic'.  When NAME is already enabled\nits new colours take effect at once."
+  "Define or redefine the theme NAME from PALETTE and return NAME.
+PALETTE comes from `tod-palette-semantic'.  When NAME is already enabled
+its new colours take effect at once."
   (let* ((mode (if (tod-color-dark-p (clel-get palette :bg)) 'dark 'light)))
     (if (tod-theme--modus-generator-p) (progn
   (setq tod-theme-palette (modus-themes-generate-palette (tod-theme--modus-base palette)))

@@ -45,7 +45,9 @@
     (tod-wallpaper-expand-template argv path)) commands))))
 
 (defun tod-wallpaper-session-type ()
-  "Return the display server of this Emacs as wayland, x11 or nil.\nXDG_SESSION_TYPE wins; WAYLAND_DISPLAY is checked before DISPLAY because\nXwayland sets DISPLAY on Wayland sessions too."
+  "Return the display server of this Emacs as wayland, x11 or nil.
+XDG_SESSION_TYPE wins; WAYLAND_DISPLAY is checked before DISPLAY because
+Xwayland sets DISPLAY on Wayland sessions too."
   (let* ((declared (getenv "XDG_SESSION_TYPE")))
     (cond
   ((equal declared "wayland") 'wayland)
@@ -55,7 +57,9 @@
   (t nil))))
 
 (defun tod-wallpaper-desktop-names ()
-  "Return the lower-cased desktop names of this session.\nThey come from XDG_CURRENT_DESKTOP, falling back to DESKTOP_SESSION,\nplus hyprland and sway when their instance variables are set."
+  "Return the lower-cased desktop names of this session.
+They come from XDG_CURRENT_DESKTOP, falling back to DESKTOP_SESSION,
+plus hyprland and sway when their instance variables are set."
   (let* ((raw (or (getenv "XDG_CURRENT_DESKTOP") (getenv "DESKTOP_SESSION") ""))
         (names (mapcar #'downcase (split-string raw ":" t))))
     (append names (when (getenv "HYPRLAND_INSTANCE_SIGNATURE")
@@ -63,7 +67,8 @@
     (list "sway")))))
 
 (defun tod-wallpaper-setter-applies-p (setter session desktops)
-  "Return non-nil when SETTER's rules accept SESSION and DESKTOPS.\nSESSION is wayland, x11 or nil and DESKTOPS a list of lower-cased names."
+  "Return non-nil when SETTER's rules accept SESSION and DESKTOPS.
+SESSION is wayland, x11 or nil and DESKTOPS a list of lower-cased names."
   (let* ((sessions (clel-get setter :session))
         (wanted (clel-get setter :desktops))
         (excluded (clel-get setter :exclude)))
@@ -72,13 +77,17 @@
     (member d excluded)) desktops)))))
 
 (defun tod-wallpaper-candidates (setters kind session desktops)
-  "Return the SETTERS of KIND that apply to SESSION and DESKTOPS.\nThe result is ordered by :priority, highest first, keeping registration\norder among equals."
+  "Return the SETTERS of KIND that apply to SESSION and DESKTOPS.
+The result is ordered by :priority, highest first, keeping registration
+order among equals."
   (seq-sort-by (lambda (s)
     (- (or (clel-get s :priority) 0))) #'< (seq-filter (lambda (s)
     (and (eq (clel-get s :kind) kind) (tod-wallpaper-setter-applies-p s session desktops))) setters)))
 
 (defun tod-wallpaper-missing (setter)
-  "Return the reasons SETTER cannot run here, or nil when it is ready.\nMissing programs from :requires are listed first, then the :probe\nresult when the probe returns a string."
+  "Return the reasons SETTER cannot run here, or nil when it is ready.
+Missing programs from :requires are listed first, then the :probe
+result when the probe returns a string."
   (let* ((programs (seq-remove #'executable-find (clel-get setter :requires)))
         (probe (clel-get setter :probe))
         (verdict (when (and (null programs) probe)
@@ -88,7 +97,8 @@
     (list verdict)))))
 
 (defun tod-wallpaper-select (setters kind session desktops)
-  "Return the first ready setter of KIND among SETTERS, or nil.\nSESSION and DESKTOPS default to this Emacs session when nil is passed."
+  "Return the first ready setter of KIND among SETTERS, or nil.
+SESSION and DESKTOPS default to this Emacs session when nil is passed."
   (seq-find (lambda (s)
     (null (tod-wallpaper-missing s))) (tod-wallpaper-candidates setters kind (or session (tod-wallpaper-session-type)) (or desktops (tod-wallpaper-desktop-names)))))
 
@@ -104,7 +114,8 @@
   (tod-wallpaper--gsettings-writable-p "org.gnome.desktop.background" "picture-uri"))
 
 (defun tod-wallpaper--probe-lazywal ()
-  "Return nil when lazywal reports a ready backend, else a reason.\nReleases without the backends command only drive X11 players."
+  "Return nil when lazywal reports a ready backend, else a reason.
+Releases without the backends command only drive X11 players."
   (let* ((out (condition-case nil
     (process-lines "lazywal" "backends")
   (error nil)))
@@ -126,7 +137,8 @@
     (list "xfconf-query" "-c" "xfce4-desktop" "-p" p "-s" (expand-file-name path))) wanted)))
 
 (defun tod-wallpaper--swaybg-commands (path)
-  "Return the commands that replace any swaybg with one showing PATH.\nswaybg runs until killed, so it is detached from Emacs with setsid."
+  "Return the commands that replace any swaybg with one showing PATH.
+swaybg runs until killed, so it is detached from Emacs with setsid."
   (list (list "sh" "-c" "pkill -x swaybg; true") (list "setsid" "-f" "swaybg" "-m" "fill" "-i" (expand-file-name path))))
 
 (defun tod-wallpaper--hyprpaper-commands (path)
@@ -136,10 +148,12 @@
 (defvar tod-wallpaper-builtin-setters (list (list (cons :exclude (list "budgie" "pantheon" "gnome-flashback")) (cons :desktops (list "gnome" "ubuntu" "unity" "gnome-classic")) (cons :requires (list "gsettings")) (cons :commands (list (list "gsettings" "set" "org.gnome.desktop.background" "picture-uri" "{uri}") (list "gsettings" "set" "org.gnome.desktop.background" "picture-uri-dark" "{uri}"))) (cons :priority 100) (cons :id 'gnome) (cons :kind 'image) (cons :probe #'tod-wallpaper--probe-gnome) (cons :session (list 'wayland 'x11))) (list (cons :id 'cinnamon) (cons :kind 'image) (cons :session (list 'x11 'wayland)) (cons :desktops (list "x-cinnamon" "cinnamon")) (cons :priority 100) (cons :requires (list "gsettings")) (cons :commands (list (list "gsettings" "set" "org.cinnamon.desktop.background" "picture-uri" "{uri}")))) (list (cons :id 'mate) (cons :kind 'image) (cons :session (list 'x11)) (cons :desktops (list "mate")) (cons :priority 100) (cons :requires (list "gsettings")) (cons :commands (list (list "gsettings" "set" "org.mate.background" "picture-filename" "{path}")))) (list (cons :id 'plasma) (cons :kind 'image) (cons :session (list 'wayland 'x11)) (cons :desktops (list "kde" "plasma")) (cons :priority 100) (cons :requires (list "plasma-apply-wallpaperimage")) (cons :commands (list (list "plasma-apply-wallpaperimage" "{path}")))) (list (cons :id 'xfce) (cons :kind 'image) (cons :session (list 'x11 'wayland)) (cons :desktops (list "xfce")) (cons :priority 100) (cons :requires (list "xfconf-query")) (cons :commands #'tod-wallpaper--xfce-commands)) (list (cons :id 'hyprpaper) (cons :kind 'image) (cons :session (list 'wayland)) (cons :desktops (list "hyprland")) (cons :priority 90) (cons :requires (list "hyprctl")) (cons :commands #'tod-wallpaper--hyprpaper-commands)) (list (cons :id 'sway) (cons :kind 'image) (cons :session (list 'wayland)) (cons :desktops (list "sway")) (cons :priority 80) (cons :requires (list "swaymsg")) (cons :commands (list (list "swaymsg" "output" "*" "bg" "{path}" "fill")))) (list (cons :id 'swww) (cons :kind 'image) (cons :session (list 'wayland)) (cons :exclude (list "gnome" "ubuntu" "kde" "plasma")) (cons :priority 60) (cons :requires (list "swww")) (cons :commands (list (list "swww" "img" "{path}")))) (list (cons :id 'swaybg) (cons :kind 'image) (cons :session (list 'wayland)) (cons :exclude (list "gnome" "ubuntu" "kde" "plasma")) (cons :priority 40) (cons :requires (list "swaybg" "setsid")) (cons :commands #'tod-wallpaper--swaybg-commands)) (list (cons :id 'feh) (cons :kind 'image) (cons :session (list 'x11)) (cons :priority 20) (cons :requires (list "feh")) (cons :commands (list (list "feh" "--no-fehbg" "--bg-fill" "{path}")))) (list (cons :id 'xwallpaper) (cons :kind 'image) (cons :session (list 'x11)) (cons :priority 15) (cons :requires (list "xwallpaper")) (cons :commands (list (list "xwallpaper" "--zoom" "{path}")))) (list (cons :id 'nitrogen) (cons :kind 'image) (cons :session (list 'x11)) (cons :priority 10) (cons :requires (list "nitrogen")) (cons :commands (list (list "nitrogen" "--set-zoom-fill" "{path}")))) (list (cons :id 'lazywal) (cons :kind 'video) (cons :session (list 'wayland 'x11)) (cons :priority 100) (cons :requires (list "lazywal")) (cons :probe #'tod-wallpaper--probe-lazywal) (cons :commands (list (list "lazywal" "set" "{path}"))))) "Setters tod knows out of the box, as alists.")
 
 (defvar tod-wallpaper-setters tod-wallpaper-builtin-setters
-  "Registered wallpaper setters, as alists; see the tod.wallpaper docs.\nUse `tod-wallpaper-register-setter' to add or replace one.")
+  "Registered wallpaper setters, as alists; see the tod.wallpaper docs.
+Use `tod-wallpaper-register-setter' to add or replace one.")
 
 (defun tod-wallpaper-register-setter (setter)
-  "Add SETTER to `tod-wallpaper-setters', replacing one with its :id.\nSETTER is an alist with at least :id, :kind and :commands."
+  "Add SETTER to `tod-wallpaper-setters', replacing one with its :id.
+SETTER is an alist with at least :id, :kind and :commands."
   (let* ((id (clel-get setter :id)))
     (setq tod-wallpaper-setters (cons setter (seq-remove (lambda (s)
     (eq (clel-get s :id) id)) tod-wallpaper-setters)))
@@ -153,7 +167,9 @@
     (and (file-regular-p f) (tod-wallpaper-file-kind f))) (directory-files directory t "\\`[^.]")))))
 
 (defun tod-wallpaper-layout-directories (root moment)
-  "Return the directories searched under ROOT for MOMENT, best first.\nCalendar periods come first (ROOT/_period/NAME/PHASE, then .../any),\nthen the month, then season and phase with any as a wildcard."
+  "Return the directories searched under ROOT for MOMENT, best first.
+Calendar periods come first (ROOT/_period/NAME/PHASE, then .../any),
+then the month, then season and phase with any as a wildcard."
   (let* ((phase (symbol-name (clel-get moment :phase)))
         (season (symbol-name (clel-get moment :season)))
         (month (format "%02d" (clel-get moment :month)))
@@ -163,12 +179,16 @@
     (list (list "_period" p phase) (list "_period" p "any"))) periods) (list (list "_month" month phase) (list "_month" month "any") (list season phase) (list "any" phase) (list season "any") (list "any" "any"))))))
 
 (defun tod-wallpaper-pick-file (files moment)
-  "Return one of FILES chosen stably for MOMENT, or nil when FILES is empty.\nThe same date and phase always give the same file, so re-resolving does\nnot flip the wallpaper, while different days rotate through FILES."
+  "Return one of FILES chosen stably for MOMENT, or nil when FILES is empty.
+The same date and phase always give the same file, so re-resolving does
+not flip the wallpaper, while different days rotate through FILES."
   (when files
     (clel-nth files (mod (sxhash-equal (list (clel-get moment :date) (clel-get moment :phase))) (length files)))))
 
 (defun tod-wallpaper-choose-file (spec moment root)
-  "Return the wallpaper file for SPEC and MOMENT, or nil.\nSPEC is a file, a directory to pick from, or t for the season and phase\nlayout under ROOT."
+  "Return the wallpaper file for SPEC and MOMENT, or nil.
+SPEC is a file, a directory to pick from, or t for the season and phase
+layout under ROOT."
   (cond
   ((and (stringp spec) (file-regular-p spec)) (expand-file-name spec))
   ((and (stringp spec) (file-directory-p spec)) (tod-wallpaper-pick-file (tod-wallpaper--wallpaper-files spec) moment))
@@ -185,7 +205,10 @@
   (expand-file-name (clel-str (secure-hash 'sha1 (expand-file-name video)) ".png") (expand-file-name "frames" cache-dir)))
 
 (defun tod-wallpaper-plan (file setters cache-dir)
-  "Return how to show FILE here, as an alist, or one explaining why not.\nSETTERS are the registered setters and CACHE-DIR holds extracted video\nframes.  The result has :setter, :commands and :image (the still image\nthat represents FILE, for palettes), or :error."
+  "Return how to show FILE here, as an alist, or one explaining why not.
+SETTERS are the registered setters and CACHE-DIR holds extracted video
+frames.  The result has :setter, :commands and :image (the still image
+that represents FILE, for palettes), or :error."
   (let* ((kind (tod-wallpaper-file-kind file))
         (video-setter (when (eq kind 'video)
     (tod-wallpaper-select setters 'video nil nil)))
@@ -202,7 +225,9 @@
   (t (list (cons :error (format "no ready %s wallpaper setter for this session" kind)))))))
 
 (defun tod-wallpaper-apply-file (file setters cache-dir done)
-  "Show FILE as the wallpaper and call DONE with OK and a message.\nSETTERS are the registered setters and CACHE-DIR holds video frames.\nReturns the plan that was run."
+  "Show FILE as the wallpaper and call DONE with OK and a message.
+SETTERS are the registered setters and CACHE-DIR holds video frames.
+Returns the plan that was run."
   (let* ((p (tod-wallpaper-plan file setters cache-dir)))
     (if (clel-get p :error) (when done
     (funcall done nil (clel-get p :error))) (tod-process-run 'wallpaper (clel-get p :commands) done))

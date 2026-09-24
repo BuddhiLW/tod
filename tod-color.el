@@ -15,7 +15,8 @@
 
 
 (defun tod-color-hex-to-rgb (hex)
-  "Return the (R G B) floats in [0, 1] for the hex colour HEX.\nHEX is \"#rrggbb\" or \"#rgb\"; anything else returns nil."
+  "Return the (R G B) floats in [0, 1] for the hex colour HEX.
+HEX is \"#rrggbb\" or \"#rgb\"; anything else returns nil."
   (cond
   ((not (stringp hex)) nil)
   ((string-match-p "\\`#[0-9a-fA-F]\\{6\\}\\'" hex) (list (/ (string-to-number (substring hex 1 3) 16) 255.0) (/ (string-to-number (substring hex 3 5) 16) 255.0) (/ (string-to-number (substring hex 5 7) 16) 255.0)))
@@ -39,22 +40,26 @@
   (if (<= c 0.04045) (/ c 12.92) (expt (/ (+ c 0.055) 1.055) 2.4)))
 
 (defun tod-color-luminance (hex)
-  "Return the WCAG 2 relative luminance of the hex colour HEX.\nUnparseable colours count as black."
+  "Return the WCAG 2 relative luminance of the hex colour HEX.
+Unparseable colours count as black."
   (let* ((rgb (or (tod-color-hex-to-rgb hex) (list 0.0 0.0 0.0))))
     (+ (* 0.2126 (tod-color--linear-channel (clel-nth rgb 0))) (* 0.7152 (tod-color--linear-channel (clel-nth rgb 1))) (* 0.0722 (tod-color--linear-channel (clel-nth rgb 2))))))
 
 (defun tod-color-contrast (a b)
-  "Return the WCAG 2 contrast ratio between hex colours A and B.\nThe result lies in [1, 21]."
+  "Return the WCAG 2 contrast ratio between hex colours A and B.
+The result lies in [1, 21]."
   (let* ((la (tod-color-luminance a))
         (lb (tod-color-luminance b)))
     (/ (+ (max la lb) 0.05) (+ (min la lb) 0.05))))
 
 (defun tod-color-dark-p (hex)
-  "Return non-nil when the hex colour HEX reads as a dark background.\nDark means white text contrasts with HEX more than black text does."
+  "Return non-nil when the hex colour HEX reads as a dark background.
+Dark means white text contrasts with HEX more than black text does."
   (< (tod-color-luminance hex) 0.179))
 
 (defun tod-color-mix (a b fraction)
-  "Return the hex colour that is FRACTION of the way from A to B.\nFRACTION 0.0 gives A and 1.0 gives B; the blend is linear in sRGB."
+  "Return the hex colour that is FRACTION of the way from A to B.
+FRACTION 0.0 gives A and 1.0 gives B; the blend is linear in sRGB."
   (let* ((ra (or (tod-color-hex-to-rgb a) (list 0.0 0.0 0.0)))
         (rb (or (tod-color-hex-to-rgb b) (list 0.0 0.0 0.0)))
         (f (tod-color--clamp01 fraction)))
@@ -88,14 +93,19 @@
     (tod-color-from-hsl (clel-nth hsl 0) (clel-nth hsl 1) lightness)))
 
 (defun tod-color--search-lightness (hex bg ratio from target)
-  "Return the lightness nearest FROM, towards TARGET, reaching RATIO.\nBinary search over lightness for HEX against background BG.  TARGET is\n0.0 or 1.0.  Returns TARGET when no lightness in between is enough."
+  "Return the lightness nearest FROM, towards TARGET, reaching RATIO.
+Binary search over lightness for HEX against background BG.  TARGET is
+0.0 or 1.0.  Returns TARGET when no lightness in between is enough."
   (cl-labels ((recur (near far i)
       (if (>= i 24) far (let* ((mid (/ (+ near far) 2.0)))
     (if (>= (tod-color-contrast (tod-color-with-lightness hex mid) bg) ratio) (recur near mid (+ i 1)) (recur mid far (+ i 1)))))))
     (recur from target 0)))
 
 (defun tod-color-ensure-contrast (fg bg ratio)
-  "Return FG adjusted so that its contrast with BG is at least RATIO.\nOnly HSL lightness changes, so the hue survives.  FG moves away from\nthe background: lighter on dark backgrounds, darker on light ones.\nWhen even white or black cannot reach RATIO, the extreme is returned."
+  "Return FG adjusted so that its contrast with BG is at least RATIO.
+Only HSL lightness changes, so the hue survives.  FG moves away from
+the background: lighter on dark backgrounds, darker on light ones.
+When even white or black cannot reach RATIO, the extreme is returned."
   (if (>= (tod-color-contrast fg bg) ratio) fg (let* ((hsl (tod-color-to-hsl fg))
         (target (if (tod-color-dark-p bg) 1.0 0.0)))
     (tod-color-with-lightness fg (tod-color--search-lightness fg bg ratio (clel-nth hsl 2) target)))))

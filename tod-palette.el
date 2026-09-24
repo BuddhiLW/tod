@@ -21,7 +21,9 @@
 (defvar tod-palette-warm-light "#ff9e3d" "Colour mixed into backgrounds while the sun is low.")
 
 (defun tod-palette-read-wal (file)
-  "Return pywal's palette in FILE as an alist, or nil when unreadable.\nThe alist has :background, :foreground, :cursor, :wallpaper and :colors,\nthe sixteen colours color0 to color15 in order."
+  "Return pywal's palette in FILE as an alist, or nil when unreadable.
+The alist has :background, :foreground, :cursor, :wallpaper and :colors,
+the sixteen colours color0 to color15 in order."
   (when (and file (file-readable-p file))
     (condition-case nil
     (let* ((data (with-temp-buffer
@@ -34,14 +36,16 @@
   (error nil))))
 
 (defun tod-palette-accent-candidates (wal)
-  "Return the saturated accent colours of the pywal palette WAL.\nSlots 0, 7, 8 and 15 hold the background, foreground and greys."
+  "Return the saturated accent colours of the pywal palette WAL.
+Slots 0, 7, 8 and 15 hold the background, foreground and greys."
   (let* ((colors (clel-get wal :colors)))
     (seq-filter (lambda (c)
     (and (tod-color-hex-to-rgb c) (>= (tod-color-saturation c) 0.15))) (mapcar (lambda (i)
     (clel-nth colors i)) (list 1 2 3 4 5 6 9 10 11 12 13 14)))))
 
 (defun tod-palette-nearest-accent (candidates hue)
-  "Return the colour of CANDIDATES nearest in hue to HUE, or nil.\nColours more than 40 degrees away do not count."
+  "Return the colour of CANDIDATES nearest in hue to HUE, or nil.
+Colours more than 40 degrees away do not count."
   (let* ((scored (mapcar (lambda (c)
     (cons (tod-color-hue-distance (tod-color-hue-degrees c) hue) c)) candidates))
         (best (car (clel-sort (lambda (a b)
@@ -50,11 +54,16 @@
     (cdr best))))
 
 (defun tod-palette-tint (wal phase warmth)
-  "Return WAL with its background warmed towards low sunlight.\nPHASE is the phase of the day; golden-hour and civil-twilight get\nWARMTH of the warm light mixed in, other phases none."
+  "Return WAL with its background warmed towards low sunlight.
+PHASE is the phase of the day; golden-hour and civil-twilight get
+WARMTH of the warm light mixed in, other phases none."
   (if (and (memq phase (list 'golden-hour 'civil-twilight)) (> warmth 0.0)) (cons (cons :background (tod-color-mix (clel-get wal :background) tod-palette-warm-light warmth)) wal) wal))
 
 (defun tod-palette-semantic (wal ratio)
-  "Return a semantic palette from the pywal palette WAL.\nEvery accent reaches RATIO against the background and the foreground\nreaches at least 7.  Keys are :bg, :fg, :cursor, :comment and the names\nin `tod-palette-semantic-hues'."
+  "Return a semantic palette from the pywal palette WAL.
+Every accent reaches RATIO against the background and the foreground
+reaches at least 7.  Keys are :bg, :fg, :cursor, :comment and the names
+in `tod-palette-semantic-hues'."
   (let* ((bg (or (clel-get wal :background) "#000000"))
         (fg (tod-color-ensure-contrast (or (clel-get wal :foreground) (if (tod-color-dark-p bg) "#ffffff" "#000000")) bg (max ratio 7.0)))
         (candidates (tod-palette-accent-candidates wal))
@@ -66,17 +75,25 @@
     (append (list (cons :bg bg) (cons :fg fg) (cons :cursor (tod-color-ensure-contrast (or (clel-get wal :cursor) fg) bg 3.0)) (cons :comment (tod-color-ensure-contrast grey bg ratio))) accents)))
 
 (defun tod-palette-wal-colors-file (cache-dir system)
-  "Return where pywal writes colors.json for CACHE-DIR.\nWhen SYSTEM is non-nil pywal uses its global cache, which also recolours\nterminals and other programs; otherwise it writes under CACHE-DIR."
+  "Return where pywal writes colors.json for CACHE-DIR.
+When SYSTEM is non-nil pywal uses its global cache, which also recolours
+terminals and other programs; otherwise it writes under CACHE-DIR."
   (if system (expand-file-name "wal/colors.json" (or (getenv "XDG_CACHE_HOME") (expand-file-name "~/.cache"))) (expand-file-name "wal/colors.json" cache-dir)))
 
 (defun tod-palette-wal-commands (image cache-dir light system)
-  "Return the commands that make pywal derive a palette from IMAGE.\nLIGHT asks for a light scheme.  When SYSTEM is nil pywal is kept to\nCACHE-DIR and told not to touch terminals, the wallpaper or other\nprograms; when non-nil it recolours the desktop as pywal usually does."
+  "Return the commands that make pywal derive a palette from IMAGE.
+LIGHT asks for a light scheme.  When SYSTEM is nil pywal is kept to
+CACHE-DIR and told not to touch terminals, the wallpaper or other
+programs; when non-nil it recolours the desktop as pywal usually does."
   (let* ((flags (append (list "-i" (expand-file-name image) "-n" "-q") (when light
     (list "-l")))))
     (if system (list (append (list "wal") flags)) (list (append (list "env" (clel-str "PYWAL_CACHE_DIR=" (expand-file-name "wal" cache-dir)) "NO_FUN=1" "wal") flags (list "-s" "-t" "-e"))))))
 
 (defun tod-palette-generate (image cache-dir light system done)
-  "Derive a pywal palette from IMAGE, then call DONE with it.\nDONE receives the palette from `tod-palette-read-wal' and an error\nmessage, one of them nil.  CACHE-DIR, LIGHT and SYSTEM are as for\n`tod-palette-wal-commands'."
+  "Derive a pywal palette from IMAGE, then call DONE with it.
+DONE receives the palette from `tod-palette-read-wal' and an error
+message, one of them nil.  CACHE-DIR, LIGHT and SYSTEM are as for
+`tod-palette-wal-commands'."
   (let* ((out (tod-palette-wal-colors-file cache-dir system)))
     (tod-process-run 'palette (tod-palette-wal-commands image cache-dir light system) (lambda (ok message)
     (let* ((wal (when ok

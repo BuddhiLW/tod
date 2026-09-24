@@ -23,7 +23,8 @@
     (funcall done ok message)))
 
 (defun tod-process--run-next (slot commands done)
-  "Run the first of COMMANDS in SLOT, then the rest, then call DONE.\nDONE receives non-nil and \"\" on success, or nil and an error message."
+  "Run the first of COMMANDS in SLOT, then the rest, then call DONE.
+DONE receives non-nil and \"\" on success, or nil and an error message."
   (if (null commands) (tod-process--finish slot done t "") (let* ((argv (car commands))
         (buffer (generate-new-buffer " *tod-process*")))
     (condition-case err
@@ -40,7 +41,10 @@
       (tod-process--finish slot done nil (error-message-string err)))))))
 
 (defun tod-process-run-commands (slot commands done)
-  "Run COMMANDS, a list of argument lists, one after another in SLOT.\nA run still going in SLOT is cancelled first and never reports.  DONE,\nwhen non-nil, is called with non-nil and \"\" on success or with nil and\nan error message on the first failure."
+  "Run COMMANDS, a list of argument lists, one after another in SLOT.
+A run still going in SLOT is cancelled first and never reports.  DONE,
+when non-nil, is called with non-nil and \"\" on success or with nil and
+an error message on the first failure."
   (let* ((previous (gethash slot tod-process--slots)))
     (remhash slot tod-process--slots)
     (when (process-live-p previous)
@@ -48,7 +52,9 @@
   (tod-process--run-next slot commands done))
 
 (defvar tod-process-runner #'tod-process-run-commands
-  "Function that executes tod's external commands.\nIt is called like `tod-process-run-commands', with a slot symbol, a list\nof argument lists and a DONE callback.")
+  "Function that executes tod's external commands.
+It is called like `tod-process-run-commands', with a slot symbol, a list
+of argument lists and a DONE callback.")
 
 (defun tod-process-run (slot commands done)
   "Run COMMANDS in SLOT through `tod-process-runner', then call DONE."

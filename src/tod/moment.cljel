@@ -35,16 +35,16 @@ The lowest step has no lower boundary, so it contributes nothing."
   (mapcar (fn [s] (second s)) (butlast ladder)))
 
 (defn- date-ordinal
-  "Return MONTH * 100 + DAY for the (MONTH DAY ...) list DATE."
-  [date]
-  (+ (* 100 (nth date 0)) (nth date 1)))
+  "Return MONTH * 100 + DAY for the (MONTH DAY ...) list DAY."
+  [day]
+  (+ (* 100 (nth day 0)) (nth day 1)))
 
 (defn in-span-p
-  "Return non-nil when DATE falls within START and END, inclusive.
-DATE is (MONTH DAY YEAR); START and END are (MONTH DAY).  A span whose
+  "Return non-nil when DAY falls within START and END, inclusive.
+DAY is (MONTH DAY YEAR); START and END are (MONTH DAY).  A span whose
 END comes before its START wraps over the new year."
-  [date start end]
-  (let [d (date-ordinal date)
+  [day start end]
+  (let [d (date-ordinal day)
         s (date-ordinal start)
         e (date-ordinal end)]
     (if (<= s e)
@@ -52,20 +52,20 @@ END comes before its START wraps over the new year."
       (or (>= d s) (<= d e)))))
 
 (defn span-names
-  "Return the names of the SPANS that contain DATE.
-Each span is (NAME (MONTH DAY) (MONTH DAY)); DATE is (MONTH DAY YEAR)."
-  [date spans]
+  "Return the names of the SPANS that contain DAY.
+Each span is (NAME (MONTH DAY) (MONTH DAY)); DAY is (MONTH DAY YEAR)."
+  [day spans]
   (delq nil (mapcar (fn [span]
-                      (when (in-span-p date (nth span 1) (nth span 2))
+                      (when (in-span-p day (nth span 1) (nth span 2))
                         (nth span 0)))
                     spans)))
 
 (defn holiday-names
-  "Return the names of the holidays in HOLIDAYS that fall on DATE.
-HOLIDAYS has the shape of `calendar-holidays'; DATE is (MONTH DAY YEAR)."
-  [date holidays]
+  "Return the names of the holidays in HOLIDAYS that fall on DAY.
+HOLIDAYS has the shape of `calendar-holidays'; DAY is (MONTH DAY YEAR)."
+  [day holidays]
   (let [calendar-holidays holidays]
-    (calendar-check-holidays date)))
+    (calendar-check-holidays day)))
 
 (defn local-date
   "Return the (MONTH DAY YEAR) list of TIME in the local time zone."
@@ -80,7 +80,7 @@ the shape of `calendar-holidays' and SPANS is a list of
 \\(NAME (MONTH DAY) (MONTH DAY)); both feed the :periods entry."
   [time latitude longitude ladder holidays spans]
   (let [local (decode-time time)
-        date (local-date time)
+        day (local-date time)
         altitude (sun/altitude time latitude longitude)]
     {:time time
      :latitude latitude
@@ -91,10 +91,10 @@ the shape of `calendar-holidays' and SPANS is a list of
      :phase (phase-for-altitude ladder altitude)
      :season (sun/season time latitude)
      :season-progress (sun/season-progress time latitude)
-     :date date
+     :date day
      :month (decoded-time-month local)
      :hour (decoded-time-hour local)
-     :periods (append (holiday-names date holidays) (span-names date spans))}))
+     :periods (append (holiday-names day holidays) (span-names day spans))}))
 
 (defn next-change
   "Return the Lisp time of the next phase boundary after TIME, or nil.

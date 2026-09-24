@@ -10,9 +10,9 @@ at local noon and midnight."
   (:require [solar]))
 
 (defn utc-midnight
-  "Return the Lisp time of 00:00 UTC on DATE, a (MONTH DAY YEAR) list."
-  [date]
-  (encode-time (list 0 0 0 (nth date 1) (nth date 0) (nth date 2) nil nil true)))
+  "Return the Lisp time of 00:00 UTC on DAY, a (MONTH DAY YEAR) list."
+  [day]
+  (encode-time (list 0 0 0 (nth day 1) (nth day 0) (nth day 2) nil nil true)))
 
 (defn utc-date
   "Return the (MONTH DAY YEAR) list of TIME in universal time."
@@ -65,11 +65,11 @@ LATITUDE and LONGITUDE are in degrees, north and east positive."
 
 (defn crossings
   "Return (RISE SET) Lisp times when the sun crosses HEIGHT degrees.
-The crossings belong to the solar day of DATE, a (MONTH DAY YEAR) list,
+The crossings belong to the solar day of DAY, a (MONTH DAY YEAR) list,
 at LATITUDE and LONGITUDE.  RISE is the upward crossing before local
 solar noon and SET the downward one after it; either is nil when the
 sun stays on one side of HEIGHT for that half-day."
-  [date latitude longitude height]
+  [day latitude longitude height]
   (let [calendar-latitude latitude
         calendar-longitude longitude
         calendar-time-zone 0
@@ -77,7 +77,7 @@ sun stays on one side of HEIGHT for that half-day."
         calendar-daylight-savings-starts nil
         calendar-daylight-savings-ends nil
         solar-northern-spring-or-summer-season nil
-        noon (solar-exact-local-noon date)
+        noon (solar-exact-local-noon day)
         t0 (solar-julian-ut-centuries (first noon))
         solar-sidereal-time-greenwich-midnight (solar-sidereal-time t0)
         moment (list t0 (second noon))
@@ -88,12 +88,12 @@ sun stays on one side of HEIGHT for that half-day."
           (when down (time-add base (round (* down 3600.0)))))))
 
 (defn- day-events
-  "Return the crossing events of DATE for every height in HEIGHTS.
+  "Return the crossing events of DAY for every height in HEIGHTS.
 Each event is an alist with :time, :height and :rising.  LATITUDE and
 LONGITUDE are in degrees."
-  [date latitude longitude heights]
+  [day latitude longitude heights]
   (mapcan (fn [height]
-            (let [pair (crossings date latitude longitude height)]
+            (let [pair (crossings day latitude longitude height)]
               (delq nil
                     (list (when (first pair)
                             {:time (first pair) :height height :rising true})
@@ -110,7 +110,7 @@ LONGITUDE are in degrees."
   (let [dates (list (utc-date (time-subtract time 86400))
                     (utc-date time)
                     (utc-date (time-add time 86400)))
-        all (mapcan (fn [date] (day-events date latitude longitude heights)) dates)]
+        all (mapcan (fn [day] (day-events day latitude longitude heights)) dates)]
     (sort (fn [a b] (time-less-p (get a :time) (get b :time))) all)))
 
 (defn next-event

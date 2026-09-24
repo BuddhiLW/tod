@@ -16,40 +16,48 @@
 
 
 
-(defvar tod-moment-default-ladder (list (list 'day 6.0) (list 'golden-hour -0.833) (list 'civil-twilight -6.0) (list 'nautical-twilight -12.0) (list 'astronomical-twilight -18.0) (list 'night -90.0)) "Phases of the day by the sun's minimum altitude in degrees.\nEach entry is (PHASE MIN-ALTITUDE), highest first; the last entry\ncatches everything below the one before it.")
+(defvar tod-moment-default-ladder (list (list 'day 6.0) (list 'golden-hour -0.833) (list 'civil-twilight -6.0) (list 'nautical-twilight -12.0) (list 'astronomical-twilight -18.0) (list 'night -90.0)) "Phases of the day by the sun's minimum altitude in degrees.
+Each entry is (PHASE MIN-ALTITUDE), highest first; the last entry
+catches everything below the one before it.")
 
 (defun tod-moment-phase-for-altitude (ladder altitude)
-  "Return the phase of LADDER that the sun's ALTITUDE falls in.\nLADDER is a list of (PHASE MIN-ALTITUDE), highest first."
+  "Return the phase of LADDER that the sun's ALTITUDE falls in.
+LADDER is a list of (PHASE MIN-ALTITUDE), highest first."
   (let* ((step (seq-find (lambda (s)
     (>= altitude (clel-second s))) ladder)))
     (clel-first (or step (clel-last ladder)))))
 
 (defun tod-moment-ladder-heights (ladder)
-  "Return the altitudes at which LADDER changes phase.\nThe lowest step has no lower boundary, so it contributes nothing."
+  "Return the altitudes at which LADDER changes phase.
+The lowest step has no lower boundary, so it contributes nothing."
   (mapcar (lambda (s)
     (clel-second s)) (clel-butlast ladder)))
 
-(defun tod-moment--date-ordinal (date)
-  "Return MONTH * 100 + DAY for the (MONTH DAY ...) list DATE."
-  (+ (* 100 (clel-nth date 0)) (clel-nth date 1)))
+(defun tod-moment--date-ordinal (day)
+  "Return MONTH * 100 + DAY for the (MONTH DAY ...) list DAY."
+  (+ (* 100 (clel-nth day 0)) (clel-nth day 1)))
 
-(defun tod-moment-in-span-p (date start end)
-  "Return non-nil when DATE falls within START and END, inclusive.\nDATE is (MONTH DAY YEAR); START and END are (MONTH DAY).  A span whose\nEND comes before its START wraps over the new year."
-  (let* ((d (tod-moment--date-ordinal date))
+(defun tod-moment-in-span-p (day start end)
+  "Return non-nil when DAY falls within START and END, inclusive.
+DAY is (MONTH DAY YEAR); START and END are (MONTH DAY).  A span whose
+END comes before its START wraps over the new year."
+  (let* ((d (tod-moment--date-ordinal day))
         (s (tod-moment--date-ordinal start))
         (e (tod-moment--date-ordinal end)))
     (if (<= s e) (and (<= s d) (<= d e)) (or (>= d s) (<= d e)))))
 
-(defun tod-moment-span-names (date spans)
-  "Return the names of the SPANS that contain DATE.\nEach span is (NAME (MONTH DAY) (MONTH DAY)); DATE is (MONTH DAY YEAR)."
+(defun tod-moment-span-names (day spans)
+  "Return the names of the SPANS that contain DAY.
+Each span is (NAME (MONTH DAY) (MONTH DAY)); DAY is (MONTH DAY YEAR)."
   (delq nil (mapcar (lambda (span)
-    (when (tod-moment-in-span-p date (clel-nth span 1) (clel-nth span 2))
+    (when (tod-moment-in-span-p day (clel-nth span 1) (clel-nth span 2))
     (clel-nth span 0))) spans)))
 
-(defun tod-moment-holiday-names (date holidays)
-  "Return the names of the holidays in HOLIDAYS that fall on DATE.\nHOLIDAYS has the shape of `calendar-holidays'; DATE is (MONTH DAY YEAR)."
+(defun tod-moment-holiday-names (day holidays)
+  "Return the names of the holidays in HOLIDAYS that fall on DAY.
+HOLIDAYS has the shape of `calendar-holidays'; DAY is (MONTH DAY YEAR)."
   (let* ((calendar-holidays holidays))
-    (calendar-check-holidays date)))
+    (calendar-check-holidays day)))
 
 (defun tod-moment-local-date (time)
   "Return the (MONTH DAY YEAR) list of TIME in the local time zone."
@@ -57,20 +65,27 @@
     (list (decoded-time-month d) (decoded-time-day d) (decoded-time-year d))))
 
 (defun tod-moment-at (time latitude longitude ladder holidays spans)
-  "Return the moment at TIME for LATITUDE and LONGITUDE.\nLADDER is a list of (PHASE MIN-ALTITUDE), highest first.  HOLIDAYS has\nthe shape of `calendar-holidays' and SPANS is a list of\n\\(NAME (MONTH DAY) (MONTH DAY)); both feed the :periods entry."
+  "Return the moment at TIME for LATITUDE and LONGITUDE.
+LADDER is a list of (PHASE MIN-ALTITUDE), highest first.  HOLIDAYS has
+the shape of `calendar-holidays' and SPANS is a list of
+\\(NAME (MONTH DAY) (MONTH DAY)); both feed the :periods entry."
   (let* ((local (decode-time time))
-        (date (tod-moment-local-date time))
+        (day (tod-moment-local-date time))
         (altitude (tod-sun-altitude time latitude longitude)))
-    (list (cons :periods (append (tod-moment-holiday-names date holidays) (tod-moment-span-names date spans))) (cons :rising (tod-sun-rising-p time latitude longitude)) (cons :date date) (cons :hour (decoded-time-hour local)) (cons :time time) (cons :month (decoded-time-month local)) (cons :phase (tod-moment-phase-for-altitude ladder altitude)) (cons :longitude longitude) (cons :azimuth (tod-sun-azimuth time latitude longitude)) (cons :season (tod-sun-season time latitude)) (cons :season-progress (tod-sun-season-progress time latitude)) (cons :latitude latitude) (cons :altitude altitude))))
+    (list (cons :periods (append (tod-moment-holiday-names day holidays) (tod-moment-span-names day spans))) (cons :rising (tod-sun-rising-p time latitude longitude)) (cons :date day) (cons :hour (decoded-time-hour local)) (cons :time time) (cons :month (decoded-time-month local)) (cons :phase (tod-moment-phase-for-altitude ladder altitude)) (cons :longitude longitude) (cons :azimuth (tod-sun-azimuth time latitude longitude)) (cons :season (tod-sun-season time latitude)) (cons :season-progress (tod-sun-season-progress time latitude)) (cons :latitude latitude) (cons :altitude altitude))))
 
 (defun tod-moment-next-change (time latitude longitude ladder)
-  "Return the Lisp time of the next phase boundary after TIME, or nil.\nLADDER is a list of (PHASE MIN-ALTITUDE), highest first.  Nil means no\nboundary is crossed within a day, as in polar day and polar night.\nLATITUDE and LONGITUDE are in degrees."
+  "Return the Lisp time of the next phase boundary after TIME, or nil.
+LADDER is a list of (PHASE MIN-ALTITUDE), highest first.  Nil means no
+boundary is crossed within a day, as in polar day and polar night.
+LATITUDE and LONGITUDE are in degrees."
   (let* ((e (tod-sun-next-event time latitude longitude (tod-moment-ladder-heights ladder))))
     (when e
     (clel-get e :time))))
 
 (defun tod-moment-next-midnight (time)
-  "Return the Lisp time of the next local midnight after TIME.\nPeriods, months and seasons can only change there or at a sun event."
+  "Return the Lisp time of the next local midnight after TIME.
+Periods, months and seasons can only change there or at a sun event."
   (let* ((d (decode-time time)))
     (encode-time (list 0 0 0 (+ 1 (decoded-time-day d)) (decoded-time-month d) (decoded-time-year d) nil -1 nil))))
 
