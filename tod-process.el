@@ -23,7 +23,9 @@
   (unless (and (boundp 'clel-runtime-version)
                (version<= "0.8.0" clel-runtime-version))
     (error "Installed clel runtime %s is too old for this file (needs %s)"
-           (if (boundp 'clel-runtime-version) clel-runtime-version "(pre-0.8.0)")
+           (if (boundp 'clel-runtime-version)
+               clel-runtime-version
+             "(pre-0.8.0)")
            "0.8.0")))
 
 (defvar tod-process--slots (make-hash-table :test 'eq)
@@ -32,26 +34,54 @@
 (defun tod-process--finish (slot done ok message)
   "Clear SLOT and report OK and MESSAGE to DONE."
   (remhash slot tod-process--slots)
-  (when done
-    (funcall done ok message)))
+  (when done (funcall done ok message)))
 
 (defun tod-process--run-next (slot commands done)
   "Run the first of COMMANDS in SLOT, then the rest, then call DONE.
 DONE receives non-nil and \"\" on success, or nil and an error message."
-  (if (null commands) (tod-process--finish slot done t "") (let* ((argv (car commands))
-        (buffer (generate-new-buffer " *tod-process*")))
-    (condition-case err
-    (puthash slot (make-process :name (clel-str "tod-" (symbol-name slot)) :buffer buffer :command argv :connection-type 'pipe :noquery t :sentinel (lambda (proc _event)
-    (when (memq (process-status proc) (list 'exit 'signal))
-    (let* ((code (process-exit-status proc))
-        (output (if (buffer-live-p buffer) (with-current-buffer buffer
-    (string-trim (buffer-string))) "")))
-    (when (buffer-live-p buffer)
-    (kill-buffer buffer))
-    (when (eq (gethash slot tod-process--slots) proc)
-    (if (eql code 0) (tod-process--run-next slot (cdr commands) done) (tod-process--finish slot done nil (format "%s exited %s: %s" (car argv) code output)))))))) tod-process--slots)
-  (error (kill-buffer buffer)
-      (tod-process--finish slot done nil (error-message-string err)))))))
+  (if (null commands)
+      (tod-process--finish slot done t "")
+    (let* ((argv (car commands))
+           (buffer (generate-new-buffer " *tod-process*")))
+      (condition-case err
+          (puthash slot
+                   (make-process
+                    :name (clel-str "tod-" (symbol-name slot))
+                    :buffer buffer
+                    :command argv
+                    :connection-type 'pipe
+                    :noquery t
+                    :sentinel (lambda (proc _event)
+                                (when (memq (process-status proc)
+                                            (list 'exit 'signal))
+                                  (let* ((code (process-exit-status proc))
+                                         (output
+                                          (if (buffer-live-p buffer)
+                                              (with-current-buffer buffer
+                                                (string-trim (buffer-string)))
+                                            "")))
+                                    (when (buffer-live-p buffer)
+                                      (kill-buffer buffer))
+                                    (when (eq (gethash slot tod-process--slots)
+                                              proc)
+                                      (if (eql code 0)
+                                          (tod-process--run-next slot
+                                                                 (cdr commands)
+                                                                 done)
+                                        (tod-process--finish
+                                         slot
+                                         done
+                                         nil
+                                         (format "%s exited %s: %s"
+                                                 (car argv)
+                                                 code
+                                                 output))))))))
+                   tod-process--slots)
+        (error (kill-buffer buffer)
+               (tod-process--finish slot
+                                    done
+                                    nil
+                                    (error-message-string err)))))))
 
 (defun tod-process-run-commands (slot commands done)
   "Run COMMANDS, a list of argument lists, one after another in SLOT.
@@ -60,8 +90,7 @@ when non-nil, is called with non-nil and \"\" on success or with nil and
 an error message on the first failure."
   (let* ((previous (gethash slot tod-process--slots)))
     (remhash slot tod-process--slots)
-    (when (process-live-p previous)
-    (delete-process previous)))
+    (when (process-live-p previous) (delete-process previous)))
   (tod-process--run-next slot commands done))
 
 (defvar tod-process-runner #'tod-process-run-commands

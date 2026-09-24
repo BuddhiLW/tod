@@ -136,7 +136,8 @@ when run by hand or by lazywal."
   :group 'tod)
 
 (defcustom tod-phase-change-functions nil
-  "Functions called when the phase changes, with new phase, old phase and moment."
+  "Functions called when the phase of the day changes.
+Each is called with the new phase, the old phase and the moment."
   :type 'hook
   :group 'tod)
 

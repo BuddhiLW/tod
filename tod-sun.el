@@ -24,13 +24,16 @@
   (unless (and (boundp 'clel-runtime-version)
                (version<= "0.8.0" clel-runtime-version))
     (error "Installed clel runtime %s is too old for this file (needs %s)"
-           (if (boundp 'clel-runtime-version) clel-runtime-version "(pre-0.8.0)")
+           (if (boundp 'clel-runtime-version)
+               clel-runtime-version
+             "(pre-0.8.0)")
            "0.8.0")))
 (require 'solar)
 
 (defun tod-sun-utc-midnight (day)
   "Return the Lisp time of 00:00 UTC on DAY, a (MONTH DAY YEAR) list."
-  (encode-time (list 0 0 0 (clel-nth day 1) (clel-nth day 0) (clel-nth day 2) nil nil t)))
+  (encode-time
+   (list 0 0 0 (clel-nth day 1) (clel-nth day 0) (clel-nth day 2) nil nil t)))
 
 (defun tod-sun-utc-date (time)
   "Return the (MONTH DAY YEAR) list of TIME in universal time."
@@ -40,35 +43,44 @@
 (defun tod-sun--utc-hours (time)
   "Return the hours since 00:00 UTC of TIME, as a float."
   (let* ((d (decode-time time t)))
-    (/ (+ (* 3600.0 (decoded-time-hour d)) (* 60.0 (decoded-time-minute d)) (float (decoded-time-second d))) 3600.0)))
+    (/
+     (+ (* 3600.0 (decoded-time-hour d))
+        (* 60.0 (decoded-time-minute d))
+        (float (decoded-time-second d)))
+     3600.0)))
 
 (defun tod-sun--horizontal (time latitude longitude)
   "Return solar.el's (AZIMUTH ALTITUDE) of the sun at TIME.
 LATITUDE and LONGITUDE are in degrees, north and east positive.
 Azimuth follows Meeus: 0 is south and 90 is west."
   (let* ((t0 (solar-julian-ut-centuries (tod-sun-utc-date time)))
-        (solar-sidereal-time-greenwich-midnight (solar-sidereal-time t0)))
-    (solar-horizontal-coordinates (list t0 (tod-sun--utc-hours time)) latitude longitude t)))
+         (solar-sidereal-time-greenwich-midnight (solar-sidereal-time t0)))
+    (solar-horizontal-coordinates (list t0 (tod-sun--utc-hours time))
+                                  latitude
+                                  longitude
+                                  t)))
 
 (defun tod-sun--normalize-degrees (degrees)
   "Return the angle DEGREES folded into (-180, 180]."
-  (let* ((d (mod degrees 360.0)))
-    (if (> d 180.0) (- d 360.0) d)))
+  (let* ((d (mod degrees 360.0))) (if (> d 180.0) (- d 360.0) d)))
 
 (defun tod-sun-altitude (time latitude longitude)
   "Return the sun's geometric altitude in degrees at TIME.
 LATITUDE and LONGITUDE are in degrees, north and east positive."
-  (tod-sun--normalize-degrees (clel-nth (tod-sun--horizontal time latitude longitude) 1)))
+  (tod-sun--normalize-degrees
+   (clel-nth (tod-sun--horizontal time latitude longitude) 1)))
 
 (defun tod-sun-azimuth (time latitude longitude)
   "Return the sun's compass bearing in degrees at TIME, north being 0.
 LATITUDE and LONGITUDE are in degrees, north and east positive."
-  (mod (+ 180.0 (clel-nth (tod-sun--horizontal time latitude longitude) 0)) 360.0))
+  (mod (+ 180.0 (clel-nth (tod-sun--horizontal time latitude longitude) 0))
+       360.0))
 
 (defun tod-sun-rising-p (time latitude longitude)
   "Return non-nil when the sun is climbing at TIME.
 LATITUDE and LONGITUDE are in degrees, north and east positive."
-  (< (tod-sun-altitude time latitude longitude) (tod-sun-altitude (time-add time 300) latitude longitude)))
+  (< (tod-sun-altitude time latitude longitude)
+     (tod-sun-altitude (time-add time 300) latitude longitude)))
 
 (defun tod-sun-crossings (day latitude longitude height)
   "Return (RISE SET) Lisp times when the sun crosses HEIGHT degrees.
@@ -77,58 +89,72 @@ at LATITUDE and LONGITUDE.  RISE is the upward crossing before local
 solar noon and SET the downward one after it; either is nil when the
 sun stays on one side of HEIGHT for that half-day."
   (let* ((calendar-latitude latitude)
-        (calendar-longitude longitude)
-        (calendar-time-zone 0)
-        (calendar-daylight-time-offset 0)
-        (calendar-daylight-savings-starts nil)
-        (calendar-daylight-savings-ends nil)
-        (solar-northern-spring-or-summer-season nil)
-        (noon (solar-exact-local-noon day))
-        (t0 (solar-julian-ut-centuries (clel-first noon)))
-        (solar-sidereal-time-greenwich-midnight (solar-sidereal-time t0))
-        (moment (list t0 (clel-second noon)))
-        (base (tod-sun-utc-midnight (clel-first noon)))
-        (up (solar-moment -1 latitude longitude moment height))
-        (down (solar-moment 1 latitude longitude moment height)))
-    (list (when up
-    (time-add base (round (* up 3600.0)))) (when down
-    (time-add base (round (* down 3600.0)))))))
+         (calendar-longitude longitude)
+         (calendar-time-zone 0)
+         (calendar-daylight-time-offset 0)
+         (calendar-daylight-savings-starts nil)
+         (calendar-daylight-savings-ends nil)
+         (solar-northern-spring-or-summer-season nil)
+         (noon (solar-exact-local-noon day))
+         (t0 (solar-julian-ut-centuries (clel-first noon)))
+         (solar-sidereal-time-greenwich-midnight (solar-sidereal-time t0))
+         (moment (list t0 (clel-second noon)))
+         (base (tod-sun-utc-midnight (clel-first noon)))
+         (up (solar-moment -1 latitude longitude moment height))
+         (down (solar-moment 1 latitude longitude moment height)))
+    (list (when up (time-add base (round (* up 3600.0))))
+          (when down (time-add base (round (* down 3600.0)))))))
 
 (defun tod-sun--day-events (day latitude longitude heights)
   "Return the crossing events of DAY for every height in HEIGHTS.
 Each event is an alist with :time, :height and :rising.  LATITUDE and
 LONGITUDE are in degrees."
-  (mapcan (lambda (height)
-    (let* ((pair (tod-sun-crossings day latitude longitude height)))
-    (delq nil (list (when (clel-first pair)
-    (clel-array-map :time (clel-first pair) :height height :rising t)) (when (clel-second pair)
-    (clel-array-map :time (clel-second pair) :height height :rising nil)))))) heights))
+  (mapcan
+   (lambda (height)
+     (let* ((pair (tod-sun-crossings day latitude longitude height)))
+       (delq nil
+             (list
+              (when (clel-first pair)
+                (clel-array-map :time (clel-first pair)
+                                :height height
+                                :rising t))
+              (when (clel-second pair)
+                (clel-array-map :time (clel-second pair)
+                                :height height
+                                :rising nil))))))
+   heights))
 
 (defun tod-sun-events-around (time latitude longitude heights)
   "Return the crossing events within a day either side of TIME, sorted.
 HEIGHTS lists the altitudes in degrees whose crossings count.  Each
 event is an alist with :time, :height and :rising.  LATITUDE and
 LONGITUDE are in degrees."
-  (let* ((dates (list (tod-sun-utc-date (time-subtract time 86400)) (tod-sun-utc-date time) (tod-sun-utc-date (time-add time 86400))))
-        (all (mapcan (lambda (day)
-    (tod-sun--day-events day latitude longitude heights)) dates)))
-    (clel-sort (lambda (a b)
-    (time-less-p (clel-get a :time) (clel-get b :time))) all)))
+  (let* ((dates
+          (list (tod-sun-utc-date (time-subtract time 86400))
+                (tod-sun-utc-date time)
+                (tod-sun-utc-date (time-add time 86400))))
+         (all
+          (mapcan
+           (lambda (day) (tod-sun--day-events day latitude longitude heights))
+           dates)))
+    (clel-sort
+     (lambda (a b) (time-less-p (clel-get a :time) (clel-get b :time)))
+     all)))
 
 (defun tod-sun-next-event (time latitude longitude heights)
   "Return the first crossing event strictly after TIME, or nil.
 HEIGHTS lists the altitudes in degrees whose crossings count.
 LATITUDE and LONGITUDE are in degrees."
-  (seq-find (lambda (e)
-    (time-less-p time (clel-get e :time))) (tod-sun-events-around time latitude longitude heights)))
+  (seq-find (lambda (e) (time-less-p time (clel-get e :time)))
+            (tod-sun-events-around time latitude longitude heights)))
 
 (defun tod-sun-ecliptic-longitude (time)
   "Return the sun's apparent ecliptic longitude in degrees at TIME.
 The value is 0 at the March equinox and 180 at the September one."
   (let* ((calendar-time-zone 0)
-        (calendar-daylight-time-offset 0)
-        (calendar-daylight-savings-starts nil)
-        (calendar-daylight-savings-ends nil))
+         (calendar-daylight-time-offset 0)
+         (calendar-daylight-savings-starts nil)
+         (calendar-daylight-savings-ends nil))
     (solar-longitude (+ 2440587.5 (/ (float-time time) 86400.0)))))
 
 (defun tod-sun--season-index (longitude latitude)
@@ -143,12 +169,16 @@ by half a year."
 The value is one of the symbols spring, summer, autumn and winter,
 counted from the equinoxes and solstices; south of the equator the
 seasons are shifted by half a year."
-  (clel-nth (list 'spring 'summer 'autumn 'winter) (tod-sun--season-index (tod-sun-ecliptic-longitude time) latitude)))
+  (clel-nth (list 'spring 'summer 'autumn 'winter)
+            (tod-sun--season-index (tod-sun-ecliptic-longitude time) latitude)))
 
 (defun tod-sun-season-progress (time latitude)
   "Return how far TIME is through its astronomical season, in [0, 1).
 LATITUDE decides the hemisphere, which does not change the fraction."
-  (let* ((shifted (if (< latitude 0) (+ (tod-sun-ecliptic-longitude time) 180.0) (tod-sun-ecliptic-longitude time))))
+  (let* ((shifted
+          (if (< latitude 0)
+              (+ (tod-sun-ecliptic-longitude time) 180.0)
+            (tod-sun-ecliptic-longitude time))))
     (/ (mod shifted 90.0) 90.0)))
 
 (provide 'tod-sun)

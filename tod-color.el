@@ -21,7 +21,9 @@
   (unless (and (boundp 'clel-runtime-version)
                (version<= "0.8.0" clel-runtime-version))
     (error "Installed clel runtime %s is too old for this file (needs %s)"
-           (if (boundp 'clel-runtime-version) clel-runtime-version "(pre-0.8.0)")
+           (if (boundp 'clel-runtime-version)
+               clel-runtime-version
+             "(pre-0.8.0)")
            "0.8.0")))
 (require 'color)
 
@@ -29,10 +31,16 @@
   "Return the (R G B) floats in [0, 1] for the hex colour HEX.
 HEX is \"#rrggbb\" or \"#rgb\"; anything else returns nil."
   (cond
-  ((not (stringp hex)) nil)
-  ((string-match-p "\\`#[0-9a-fA-F]\\{6\\}\\'" hex) (list (/ (string-to-number (substring hex 1 3) 16) 255.0) (/ (string-to-number (substring hex 3 5) 16) 255.0) (/ (string-to-number (substring hex 5 7) 16) 255.0)))
-  ((string-match-p "\\`#[0-9a-fA-F]\\{3\\}\\'" hex) (list (/ (* 17 (string-to-number (substring hex 1 2) 16)) 255.0) (/ (* 17 (string-to-number (substring hex 2 3) 16)) 255.0) (/ (* 17 (string-to-number (substring hex 3 4) 16)) 255.0)))
-  (t nil)))
+   ((not (stringp hex)) nil)
+   ((string-match-p "\\`#[0-9a-fA-F]\\{6\\}\\'" hex)
+    (list (/ (string-to-number (substring hex 1 3) 16) 255.0)
+          (/ (string-to-number (substring hex 3 5) 16) 255.0)
+          (/ (string-to-number (substring hex 5 7) 16) 255.0)))
+   ((string-match-p "\\`#[0-9a-fA-F]\\{3\\}\\'" hex)
+    (list (/ (* 17 (string-to-number (substring hex 1 2) 16)) 255.0)
+          (/ (* 17 (string-to-number (substring hex 2 3) 16)) 255.0)
+          (/ (* 17 (string-to-number (substring hex 3 4) 16)) 255.0)))
+   (t nil)))
 
 (defun tod-color--clamp01 (x)
   "Clamp the number X into [0, 1]."
@@ -40,7 +48,10 @@ HEX is \"#rrggbb\" or \"#rgb\"; anything else returns nil."
 
 (defun tod-color-rgb-to-hex (r g b)
   "Return the \"#rrggbb\" string for the float channels R, G and B."
-  (format "#%02x%02x%02x" (round (* 255.0 (tod-color--clamp01 r))) (round (* 255.0 (tod-color--clamp01 g))) (round (* 255.0 (tod-color--clamp01 b)))))
+  (format "#%02x%02x%02x"
+          (round (* 255.0 (tod-color--clamp01 r)))
+          (round (* 255.0 (tod-color--clamp01 g)))
+          (round (* 255.0 (tod-color--clamp01 b)))))
 
 (defun tod-color--rgb-list-to-hex (rgb)
   "Return the hex string for RGB, a list of three float channels."
@@ -54,13 +65,14 @@ HEX is \"#rrggbb\" or \"#rgb\"; anything else returns nil."
   "Return the WCAG 2 relative luminance of the hex colour HEX.
 Unparseable colours count as black."
   (let* ((rgb (or (tod-color-hex-to-rgb hex) (list 0.0 0.0 0.0))))
-    (+ (* 0.2126 (tod-color--linear-channel (clel-nth rgb 0))) (* 0.7152 (tod-color--linear-channel (clel-nth rgb 1))) (* 0.0722 (tod-color--linear-channel (clel-nth rgb 2))))))
+    (+ (* 0.2126 (tod-color--linear-channel (clel-nth rgb 0)))
+       (* 0.7152 (tod-color--linear-channel (clel-nth rgb 1)))
+       (* 0.0722 (tod-color--linear-channel (clel-nth rgb 2))))))
 
 (defun tod-color-contrast (a b)
   "Return the WCAG 2 contrast ratio between hex colours A and B.
 The result lies in [1, 21]."
-  (let* ((la (tod-color-luminance a))
-        (lb (tod-color-luminance b)))
+  (let* ((la (tod-color-luminance a)) (lb (tod-color-luminance b)))
     (/ (+ (max la lb) 0.05) (+ (min la lb) 0.05))))
 
 (defun tod-color-dark-p (hex)
@@ -72,9 +84,12 @@ Dark means white text contrasts with HEX more than black text does."
   "Return the hex colour that is FRACTION of the way from A to B.
 FRACTION 0.0 gives A and 1.0 gives B; the blend is linear in sRGB."
   (let* ((ra (or (tod-color-hex-to-rgb a) (list 0.0 0.0 0.0)))
-        (rb (or (tod-color-hex-to-rgb b) (list 0.0 0.0 0.0)))
-        (f (tod-color--clamp01 fraction)))
-    (tod-color-rgb-to-hex (+ (clel-nth ra 0) (* f (- (clel-nth rb 0) (clel-nth ra 0)))) (+ (clel-nth ra 1) (* f (- (clel-nth rb 1) (clel-nth ra 1)))) (+ (clel-nth ra 2) (* f (- (clel-nth rb 2) (clel-nth ra 2)))))))
+         (rb (or (tod-color-hex-to-rgb b) (list 0.0 0.0 0.0)))
+         (f (tod-color--clamp01 fraction)))
+    (tod-color-rgb-to-hex
+     (+ (clel-nth ra 0) (* f (- (clel-nth rb 0) (clel-nth ra 0))))
+     (+ (clel-nth ra 1) (* f (- (clel-nth rb 1) (clel-nth ra 1))))
+     (+ (clel-nth ra 2) (* f (- (clel-nth rb 2) (clel-nth ra 2)))))))
 
 (defun tod-color-to-hsl (hex)
   "Return the (HUE SATURATION LIGHTNESS) floats in [0, 1] of hex HEX."
@@ -83,7 +98,10 @@ FRACTION 0.0 gives A and 1.0 gives B; the blend is linear in sRGB."
 
 (defun tod-color-from-hsl (hue saturation lightness)
   "Return the hex colour for HUE, SATURATION and LIGHTNESS in [0, 1]."
-  (tod-color--rgb-list-to-hex (color-hsl-to-rgb hue (tod-color--clamp01 saturation) (tod-color--clamp01 lightness))))
+  (tod-color--rgb-list-to-hex
+   (color-hsl-to-rgb hue
+                     (tod-color--clamp01 saturation)
+                     (tod-color--clamp01 lightness))))
 
 (defun tod-color-hue-degrees (hex)
   "Return the hue of hex colour HEX in degrees, in [0, 360)."
@@ -95,8 +113,7 @@ FRACTION 0.0 gives A and 1.0 gives B; the blend is linear in sRGB."
 
 (defun tod-color-hue-distance (a b)
   "Return the circular distance in degrees between hues A and B."
-  (let* ((d (abs (- (mod a 360.0) (mod b 360.0)))))
-    (min d (- 360.0 d))))
+  (let* ((d (abs (- (mod a 360.0) (mod b 360.0))))) (min d (- 360.0 d))))
 
 (defun tod-color-with-lightness (hex lightness)
   "Return hex colour HEX with its HSL lightness replaced by LIGHTNESS."
@@ -108,8 +125,16 @@ FRACTION 0.0 gives A and 1.0 gives B; the blend is linear in sRGB."
 Binary search over lightness for HEX against background BG.  TARGET is
 0.0 or 1.0.  Returns TARGET when no lightness in between is enough."
   (cl-labels ((recur (near far i)
-      (if (>= i 24) far (let* ((mid (/ (+ near far) 2.0)))
-    (if (>= (tod-color-contrast (tod-color-with-lightness hex mid) bg) ratio) (recur near mid (+ i 1)) (recur mid far (+ i 1)))))))
+                     (if (>= i 24)
+                         far
+                       (let* ((mid (/ (+ near far) 2.0)))
+                         (if (>=
+                              (tod-color-contrast
+                               (tod-color-with-lightness hex mid)
+                               bg)
+                              ratio)
+                             (recur near mid (+ i 1))
+                           (recur mid far (+ i 1)))))))
     (recur from target 0)))
 
 (defun tod-color-ensure-contrast (fg bg ratio)
@@ -117,9 +142,13 @@ Binary search over lightness for HEX against background BG.  TARGET is
 Only HSL lightness changes, so the hue survives.  FG moves away from
 the background: lighter on dark backgrounds, darker on light ones.
 When even white or black cannot reach RATIO, the extreme is returned."
-  (if (>= (tod-color-contrast fg bg) ratio) fg (let* ((hsl (tod-color-to-hsl fg))
-        (target (if (tod-color-dark-p bg) 1.0 0.0)))
-    (tod-color-with-lightness fg (tod-color--search-lightness fg bg ratio (clel-nth hsl 2) target)))))
+  (if (>= (tod-color-contrast fg bg) ratio)
+      fg
+    (let* ((hsl (tod-color-to-hsl fg))
+           (target (if (tod-color-dark-p bg) 1.0 0.0)))
+      (tod-color-with-lightness
+       fg
+       (tod-color--search-lightness fg bg ratio (clel-nth hsl 2) target)))))
 
 (provide 'tod-color)
 ;;; tod-color.el ends here

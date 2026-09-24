@@ -27,7 +27,9 @@
   (unless (and (boundp 'clel-runtime-version)
                (version<= "0.8.0" clel-runtime-version))
     (error "Installed clel runtime %s is too old for this file (needs %s)"
-           (if (boundp 'clel-runtime-version) clel-runtime-version "(pre-0.8.0)")
+           (if (boundp 'clel-runtime-version)
+               clel-runtime-version
+             "(pre-0.8.0)")
            "0.8.0")))
 
 (defun tod-look--member-or-eq (value actual)
@@ -60,17 +62,18 @@ VALUE non-nil asks for a climbing sun, nil for a sinking one."
 VALUE is a regexp or a list of regexps matched against the names of the
 holidays and date spans in effect."
   (let* ((patterns (if (stringp value) (list value) value)))
-    (seq-some (lambda (label)
-    (seq-some (lambda (re)
-    (string-match-p re label)) patterns)) (clel-get moment :periods))))
+    (seq-some
+     (lambda (label)
+       (seq-some (lambda (re) (string-match-p re label)) patterns))
+     (clel-get moment :periods))))
 
 (defun tod-look-match-hour (value moment)
   "Return non-nil when MOMENT's local hour lies in VALUE.
 VALUE is (FROM TO): FROM inclusive, TO exclusive, wrapping at midnight
 when TO is not after FROM."
   (let* ((h (clel-get moment :hour))
-        (from (clel-nth value 0))
-        (to (clel-nth value 1)))
+         (from (clel-nth value 0))
+         (to (clel-nth value 1)))
     (if (< from to) (and (<= from h) (< h to)) (or (>= h from) (< h to)))))
 
 (defun tod-look-match-altitude (value moment)
@@ -78,15 +81,23 @@ when TO is not after FROM."
 VALUE is (MIN MAX) in degrees: MIN inclusive, MAX exclusive, and nil for
 either end means unbounded."
   (let* ((a (clel-get moment :altitude))
-        (lo (clel-nth value 0))
-        (hi (clel-nth value 1)))
+         (lo (clel-nth value 0))
+         (hi (clel-nth value 1)))
     (and (or (null lo) (>= a lo)) (or (null hi) (< a hi)))))
 
 (defun tod-look-match-predicate (value moment)
   "Return non-nil when the function VALUE returns non-nil for MOMENT."
   (funcall value moment))
 
-(defvar tod-look-criteria (list (cons :phase #'tod-look-match-phase) (cons :season #'tod-look-match-season) (cons :month #'tod-look-match-month) (cons :rising #'tod-look-match-rising) (cons :period #'tod-look-match-period) (cons :hour #'tod-look-match-hour) (cons :altitude #'tod-look-match-altitude) (cons :when #'tod-look-match-predicate))
+(defvar tod-look-criteria
+    (list (cons :phase #'tod-look-match-phase)
+          (cons :season #'tod-look-match-season)
+          (cons :month #'tod-look-match-month)
+          (cons :rising #'tod-look-match-rising)
+          (cons :period #'tod-look-match-period)
+          (cons :hour #'tod-look-match-hour)
+          (cons :altitude #'tod-look-match-altitude)
+          (cons :when #'tod-look-match-predicate))
   "Alist of rule criteria: (KEY . FUNCTION).
 FUNCTION is called with the rule's value for KEY and the moment, and
 returns non-nil when the criterion holds.  Add an entry to make KEY
@@ -99,29 +110,35 @@ usable in `tod-looks'.")
 (defun tod-look-rule-keys (rule)
   "Return the keys of the plist RULE, in order."
   (cl-labels ((recur (p acc)
-      (if (consp p) (recur (nthcdr 2 p) (cons (car p) acc)) (nreverse acc))))
+                     (if (consp p)
+                         (recur (nthcdr 2 p) (cons (car p) acc))
+                       (nreverse acc))))
     (recur rule nil)))
 
 (defun tod-look-rule-matches-p (rule moment criteria)
   "Return non-nil when every criterion of RULE holds for MOMENT.
 CRITERIA is an alist of (KEY . FUNCTION) as in `tod-look-criteria'."
-  (seq-every-p (lambda (k)
-    (let* ((entry (tod-look-criterion-p k criteria)))
-    (or (null entry) (funcall (cdr entry) (plist-get rule k) moment)))) (tod-look-rule-keys rule)))
+  (seq-every-p
+   (lambda (k)
+     (let* ((entry (tod-look-criterion-p k criteria)))
+       (or (null entry) (funcall (cdr entry) (plist-get rule k) moment))))
+   (tod-look-rule-keys rule)))
 
 (defun tod-look-attribute-keys (rules criteria)
   "Return every attribute key used in RULES, in first-seen order.
 Keys registered in CRITERIA are criteria, not attributes."
-  (seq-uniq (seq-remove (lambda (k)
-    (tod-look-criterion-p k criteria)) (mapcan (lambda (rule)
-    (tod-look-rule-keys rule)) rules))))
+  (seq-uniq
+   (seq-remove (lambda (k) (tod-look-criterion-p k criteria))
+               (mapcan (lambda (rule) (tod-look-rule-keys rule)) rules))))
 
 (defun tod-look-pick-available (value available-p)
   "Return the first element of VALUE that AVAILABLE-P accepts.
 VALUE may be a single item or a list of alternatives in preference
 order.  Returns nil when none is available."
-  (seq-find (lambda (v)
-    (funcall available-p v)) (if (and (consp value) (not (functionp value))) value (list value))))
+  (seq-find (lambda (v) (funcall available-p v))
+            (if (and (consp value) (not (functionp value)))
+                value
+              (list value))))
 
 (defun tod-look-resolve (rules moment criteria available-p)
   "Return the look for MOMENT as an alist of attribute to value.
@@ -130,17 +147,27 @@ RULES is an ordered list of rule plists and CRITERIA an alist of
 matching rule that sets it.  The :theme attribute may list alternatives;
 the first one AVAILABLE-P accepts wins, and a rule whose alternatives are
 all unavailable is skipped."
-  (let* ((matching (seq-filter (lambda (rule)
-    (tod-look-rule-matches-p rule moment criteria)) rules)))
-    (delq nil (mapcar (lambda (k)
-    (let* ((value (if (eq k :theme) (seq-some (lambda (rule)
-    (when (plist-member rule :theme)
-    (tod-look-pick-available (plist-get rule :theme) available-p))) matching) (let* ((rule (seq-find (lambda (r)
-    (plist-member r k)) matching)))
-    (when rule
-    (plist-get rule k))))))
-    (when value
-    (cons k value)))) (tod-look-attribute-keys rules criteria)))))
+  (let* ((matching
+          (seq-filter
+           (lambda (rule) (tod-look-rule-matches-p rule moment criteria))
+           rules)))
+    (delq nil
+          (mapcar
+           (lambda (k)
+             (let* ((value
+                     (if (eq k :theme)
+                         (seq-some
+                          (lambda (rule)
+                            (when (plist-member rule :theme)
+                              (tod-look-pick-available (plist-get rule :theme)
+                                                       available-p)))
+                          matching)
+                       (let* ((rule
+                               (seq-find (lambda (r) (plist-member r k))
+                                         matching)))
+                         (when rule (plist-get rule k))))))
+               (when value (cons k value))))
+           (tod-look-attribute-keys rules criteria)))))
 
 (provide 'tod-look)
 ;;; tod-look.el ends here
