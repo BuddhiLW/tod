@@ -82,6 +82,30 @@
    :depends [compile runtime]
    :task (apply emacs! (concat ["-l" "scripts/lint-package.el"] (el-files)))}
 
+  ci-docker
+  {:doc "Run CI's steps in Docker on older Emacs releases: bb ci-docker [VERSION...] (29.1 30.1)"
+   :depends [compile runtime]
+   :task (let [versions (or (seq *command-line-args*) ["29.1" "30.1"])
+               script   (str/join
+                         "\n"
+                         ["set -e"
+                          (str "mkdir /w && tar -C /src -cf - --exclude=.git --exclude=.clel-cache"
+                               " --exclude=.cache/elpa --exclude=.cache/elc . | tar -C /w -xf -")
+                          "cd /w && emacs --version | head -1"
+                          (str "emacs -Q --batch -L . -L .cache --eval '(setq byte-compile-error-on-warn t)'"
+                               " -f batch-byte-compile tod*.el")
+                          (str "emacs -Q --batch -L . -L .cache -l ert"
+                               " $(for f in test/*-test.el; do printf -- '-l %s ' \"$f\"; done)"
+                               " -f ert-run-tests-batch-and-exit")
+                          "emacs -Q --batch -L . -L .cache -l scripts/lint-checkdoc.el tod*.el"
+                          "emacs -Q --batch -L . -L .cache -l scripts/lint-package.el tod*.el"])]
+           (doseq [v versions]
+             (println "=== Emacs" v)
+             (let [{:keys [exit]} (p/shell {:continue true}
+                                           "docker" "run" "--rm" "-v" (str (fs/cwd) ":/src:ro")
+                                           (str "silex/emacs:" v) "bash" "-c" script)]
+               (when-not (zero? exit) (System/exit exit)))))}
+
   lint
   {:doc "byte-compile + checkdoc + package-lint"
    :depends [byte-compile checkdoc package-lint]}}}
