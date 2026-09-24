@@ -5,7 +5,7 @@
 ;; Author: Pedro G. Branquinho <pedrogbranquinho@gmail.com>
 ;; URL: https://github.com/BuddhiLW/tod
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "29.1") (clojure-elisp-runtime "0.7.2"))
+;; Package-Requires: ((emacs "29.1") (clel "0.8.0"))
 ;; Keywords: faces, calendar, convenience
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -39,12 +39,12 @@
 ;;; Code:
 
 (eval-and-compile
-  (require 'clojure-elisp-runtime)
+  (require 'clel)
   (unless (and (boundp 'clel-runtime-version)
-               (version<= "0.7.2" clel-runtime-version))
-    (error "clojure-elisp-runtime %s is too old for this file (needs %s)"
-           (if (boundp 'clel-runtime-version) clel-runtime-version "(pre-0.7.2)")
-           "0.7.2")))
+               (version<= "0.8.0" clel-runtime-version))
+    (error "Installed clel runtime %s is too old for this file (needs %s)"
+           (if (boundp 'clel-runtime-version) clel-runtime-version "(pre-0.8.0)")
+           "0.8.0")))
 (require 'tod-moment)
 (require 'tod-look)
 (require 'tod-sun)
@@ -62,20 +62,20 @@
 
 (defcustom tod-latitude nil
   "Latitude in degrees, north positive, or nil to use `calendar-latitude'."
-  :group 'tod
-  :type '(choice (const :tag "Use calendar-latitude" nil) number))
+  :type '(choice (const :tag "Use calendar-latitude" nil) number)
+  :group 'tod)
 
 (defcustom tod-longitude nil
   "Longitude in degrees, east positive, or nil to use `calendar-longitude'."
-  :group 'tod
-  :type '(choice (const :tag "Use calendar-longitude" nil) number))
+  :type '(choice (const :tag "Use calendar-longitude" nil) number)
+  :group 'tod)
 
 (defcustom tod-phases tod-moment-default-ladder
   "Phases of the day by the sun's minimum altitude in degrees.
 Each entry is (PHASE MIN-ALTITUDE), highest first; the last entry
 catches everything below the one before it."
-  :group 'tod
-  :type '(repeat (list symbol number)))
+  :type '(repeat (list symbol number))
+  :group 'tod)
 
 (defcustom tod-looks '((:phase night :season winter :theme (ef-winter ef-night modus-vivendi-tinted modus-vivendi)) (:phase night :season autumn :theme (ef-autumn ef-night modus-vivendi)) (:phase night :theme (ef-night ef-dark modus-vivendi)) (:phase (astronomical-twilight nautical-twilight) :theme (ef-dream ef-maris-dark modus-vivendi-tinted modus-vivendi)) (:phase civil-twilight :rising t :theme (ef-elea-dark modus-vivendi-tinted modus-vivendi)) (:phase civil-twilight :theme (ef-melissa-dark ef-autumn modus-vivendi-tinted modus-vivendi)) (:phase golden-hour :theme (ef-melissa-light modus-operandi-tinted modus-operandi)) (:season spring :theme (ef-spring modus-operandi-tinted modus-operandi)) (:season summer :theme (ef-summer ef-day modus-operandi)) (:season autumn :theme (ef-cyprus ef-day modus-operandi-tinted modus-operandi)) (:season winter :theme (ef-frost modus-operandi)) (:theme modus-operandi :wallpaper t))
   "Rules that turn the sun and the calendar into a look.
@@ -89,59 +89,59 @@ of `tod-look-criteria': :phase, :season, :month, :rising, :period,
   :palette    wal to build the theme from the wallpaper with pywal
 
 Each attribute comes from the first matching rule that sets it."
-  :group 'tod
-  :type '(repeat (plist :key-type symbol :value-type sexp)))
+  :type '(repeat (plist :key-type symbol :value-type sexp))
+  :group 'tod)
 
 (defcustom tod-holidays nil
   "Holidays that count as periods, in the format of `calendar-holidays'.
 Nil means use `calendar-holidays' itself."
-  :group 'tod
-  :type '(choice (const :tag "Use calendar-holidays" nil) (repeat sexp)))
+  :type '(choice (const :tag "Use calendar-holidays" nil) (repeat sexp))
+  :group 'tod)
 
 (defcustom tod-periods nil
   "Named date spans that count as periods.
 Each entry is (NAME (MONTH DAY) (MONTH DAY)), inclusive; a span whose
 end comes before its start wraps over the new year."
-  :group 'tod
-  :type '(repeat (list string (list integer integer) (list integer integer))))
+  :type '(repeat (list string (list integer integer) (list integer integer)))
+  :group 'tod)
 
 (defcustom tod-wallpaper-directory nil
   "Root of the wallpaper layout, or nil for tod/ in the Pictures folder."
-  :group 'tod
-  :type '(choice (const :tag "Pictures/tod" nil) directory))
+  :type '(choice (const :tag "Pictures/tod" nil) directory)
+  :group 'tod)
 
 (defcustom tod-palette-scope 'isolated
   "How far a pywal palette reaches.
 isolated keeps pywal's output in tod's cache and leaves terminals and
 other programs alone; system lets pywal recolour the desktop as it does
 when run by hand or by lazywal."
-  :group 'tod
-  :type '(choice (const isolated) (const system)))
+  :type '(choice (const isolated) (const system))
+  :group 'tod)
 
 (defcustom tod-minimum-contrast 4.5
   "WCAG contrast every colour of a generated palette must reach."
-  :group 'tod
-  :type 'number)
+  :type 'number
+  :group 'tod)
 
 (defcustom tod-warmth 0.06
   "How much warm light tints generated backgrounds while the sun is low."
-  :group 'tod
-  :type 'number)
+  :type 'number
+  :group 'tod)
 
 (defcustom tod-refresh-interval 1800
   "Longest time in seconds between two checks of the look."
-  :group 'tod
-  :type 'integer)
+  :type 'integer
+  :group 'tod)
 
 (defcustom tod-apply-functions nil
   "Functions called after tod applies a look, with the look and moment."
-  :group 'tod
-  :type 'hook)
+  :type 'hook
+  :group 'tod)
 
 (defcustom tod-phase-change-functions nil
   "Functions called when the phase changes, with new phase, old phase and moment."
-  :group 'tod
-  :type 'hook)
+  :type 'hook
+  :group 'tod)
 
 (defvar tod-mode)
 
@@ -204,10 +204,10 @@ when run by hand or by lazywal."
   "Return the look `tod-looks' gives the moment M."
   (tod-look-resolve tod-looks m tod-look-criteria #'tod-theme-available-p))
 
-(defun tod--note-error (message)
-  "Remember MESSAGE as tod's last error and show it."
-  (setq tod--last-error message)
-  (message "Tod: %s" message))
+(defun tod--note-error (msg)
+  "Remember MSG as tod's last error and show it."
+  (setq tod--last-error msg)
+  (message "Tod: %s" msg))
 
 (defun tod--light-phase-p (phase)
   "Return non-nil when PHASE is bright enough for a light palette."
@@ -325,6 +325,7 @@ It is the next phase boundary, the next local midnight or
   (error nil))
     (setq tod--resume-signal nil)))
 
+;;;###autoload
 (define-minor-mode tod-mode
   "Keep themes and wallpaper in step with the sun and the seasons.
 When enabled, tod applies the look `tod-looks' gives the current moment
@@ -344,16 +345,16 @@ and wakes at every twilight boundary, local midnight and at most every
   "Return the phase the sun enters when crossing HEIGHT, RISING or not."
   (let* ((steps tod-phases)
         (above (seq-find (lambda (s)
-    (equal (clel-second s) height)) steps))
+    (clel-equal (clel-second s) height)) steps))
         (below (clel-second (seq-drop-while (lambda (s)
-    (not (equal (clel-second s) height))) steps))))
+    (not (clel-equal (clel-second s) height))) steps))))
     (clel-first (if rising above below))))
 
 (defun tod-event-label (height rising)
   "Return the diary label of the crossing of HEIGHT, RISING or not."
   (cond
-  ((and (equal height -0.833) rising) "Sunrise")
-  ((equal height -0.833) "Sunset")
+  ((and (clel-equal height -0.833) rising) "Sunrise")
+  ((clel-equal height -0.833) "Sunset")
   (t (clel-str (tod--phase-label (or (tod--phase-entered height rising) 'night)) " begins"))))
 
 (defun tod--format-events (day lat lon)
@@ -366,6 +367,7 @@ LAT and LON give the place."
     (mapcar (lambda (e)
     (clel-str (format-time-string "%H:%M" (clel-get e :time)) " " (tod-event-label (clel-get e :height) (clel-get e :rising)))) events)))
 
+;;;###autoload
 (defun tod-diary-sun ()
   "Return the day's twilight and sun events for diary and Org agenda.
 Use it as %%(tod-diary-sun) in a diary or Org file: each event becomes
@@ -377,6 +379,7 @@ its own timed agenda line."
     (when (and day loc)
     (string-join (tod--format-events day (clel-nth loc 0) (clel-nth loc 1)) "; "))))
 
+;;;###autoload
 (defun tod-describe ()
   "Show the sun, the season, today's boundaries and the chosen look."
   (interactive)
@@ -393,18 +396,20 @@ its own timed agenda line."
     (princ (format "  %-12s %s\n" (clel-get s :id) (if why (string-join why ", ") "ready"))))) (when tod--last-error
     (princ (format "\nLast error: %s\n" tod--last-error)))))))
 
+;;;###autoload
 (defun tod-preview (phase season)
   "Apply the look for PHASE and SEASON now, without touching the wallpaper.
 The next boundary restores the real look."
   (interactive (list (intern (completing-read "Phase: " (mapcar (lambda (s)
     (symbol-name (clel-first s))) tod-phases) nil t)) (intern (completing-read "Season: " (list "spring" "summer" "autumn" "winter") nil t))))
-  (let* ((m (or (tod-current-moment nil) (list (cons :periods nil))))
+  (let* ((m (or (tod-current-moment nil) (clel-array-map :periods nil)))
         (fake (cons (cons :phase phase) (cons (cons :season season) m)))
         (look (tod-pick-look fake)))
     (when (clel-get look :theme)
     (tod-theme-switch (clel-get look :theme)))
     (message "Previewing %s in %s: %s" phase season (or (clel-get look :theme) "no theme"))))
 
+;;;###autoload
 (defun tod-install-themes ()
   "Install the ef-themes collection, which the default looks prefer."
   (interactive)

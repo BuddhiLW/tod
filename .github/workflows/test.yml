@@ -16,11 +16,11 @@ jobs:
       - uses: purcell/setup-emacs@master
         with:
           version: ${{ matrix.emacs }}
-      - name: Fetch the ClojureElisp runtime
+      - name: Fetch the ClojureElisp runtime, clel
         run: |
           mkdir -p .cache
-          curl -fsSL -o .cache/clojure-elisp-runtime.el \
-            https://raw.githubusercontent.com/BuddhiLW/clojure-elisp/v0.7.2/resources/clojure-elisp/clojure-elisp-runtime.el
+          curl -fsSL -o .cache/clel.el \
+            https://raw.githubusercontent.com/BuddhiLW/clojure-elisp/v0.8.0/resources/clojure-elisp/clel.el
       - name: Byte-compile, warnings as errors
         run: |
           emacs -Q --batch -L . -L .cache \

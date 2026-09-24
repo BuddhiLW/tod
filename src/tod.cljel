@@ -211,10 +211,10 @@ when run by hand or by lazywal."
 ;;; Applying a look
 
 (defn- note-error
-  "Remember MESSAGE as tod's last error and show it."
-  [message]
-  (setq tod--last-error message)
-  (message "Tod: %s" message))
+  "Remember MSG as tod's last error and show it."
+  [msg]
+  (setq tod--last-error msg)
+  (message "Tod: %s" msg))
 
 (defn- light-phase-p
   "Return non-nil when PHASE is bright enough for a light palette."

@@ -5,7 +5,7 @@
 ;; The compiler dependency points at a local clojure-elisp checkout until the
 ;; :elisp/package header feature is released to Clojars.
 {:deps {io.github.buddhilw/clojure-elisp
-        {:local/root "/home/klein/PP/clojure-elisp/.claude/worktrees/package-headers"}}
+        {:local/root "/home/klein/PP/clojure-elisp/.claude/worktrees/tod-ready"}}
 
  :tasks
  {:requires ([babashka.fs :as fs]
@@ -39,7 +39,7 @@
            r)}
 
   runtime
-  {:doc "Write clojure-elisp-runtime.el into .cache/ for tests and linting"
+  {:doc "Write clel.el, the ClojureElisp runtime, into .cache/ for tests and linting"
    :requires ([clojure-elisp.core :as clel])
    :task (do (fs/create-dirs cache-dir)
              (clel/bundle-runtime! cache-dir))}

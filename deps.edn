@@ -1,0 +1,17 @@
+;; The compiler for running under ClojureWasm, which starts in ~20 ms:
+;;   cljw -A:cljw -m clojure-elisp.main compile src/ -o ./
+;; cljw does not fetch Maven coordinates, so the compiler's own runtime
+;; dependencies are pinned here by commit.
+{:paths []
+ :aliases
+ {:cljw {:extra-deps {io.github.buddhilw/clojure-elisp
+                      {:local/root "/home/klein/PP/clojure-elisp/.claude/worktrees/tod-ready"}
+                      io.github.hive-agi/hive-dsl
+                      {:git/url "https://github.com/hive-agi/hive-dsl"
+                       :git/sha "8d9760c2f0cf210555db8b3d9fc47ce1af46d3f4"}
+                      metosin/malli
+                      {:git/url "https://github.com/metosin/malli"
+                       :git/sha "13656199432c9fc44747212a0114f3c7c9a9fb4b"}
+                      borkdude/dynaload
+                      {:git/url "https://github.com/borkdude/dynaload"
+                       :git/sha "ad11c760fc5b9c7d8d7817f1433eecf09115b2d0"}}}}}
