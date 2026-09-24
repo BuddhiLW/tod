@@ -1,0 +1,156 @@
+(ns tod.look
+  "Resolve a look from ordered rules.
+
+A rule is a plist mixing criteria and attributes, for example
+
+  (:phase night :season winter :theme (ef-winter modus-vivendi))
+
+Criteria are the keys registered in `tod-look-criteria'; every other key
+is an attribute.  A rule matches a moment when all of its criteria hold.
+Each attribute is resolved separately: it takes its value from the first
+matching rule that sets it, so one rule can pick the theme while a later,
+broader rule picks the wallpaper.")
+
+(defn- member-or-eq
+  "Return non-nil when ACTUAL equals VALUE or is a member of it.
+VALUE is a single symbol or number, or a list of them."
+  [value actual]
+  (if (consp value)
+    (memql actual value)
+    (eql value actual)))
+
+(defn match-phase
+  "Return non-nil when VALUE names the phase of MOMENT.
+VALUE is a phase symbol or a list of them."
+  [value moment]
+  (member-or-eq value (get moment :phase)))
+
+(defn match-season
+  "Return non-nil when VALUE names the season of MOMENT.
+VALUE is a season symbol or a list of them."
+  [value moment]
+  (member-or-eq value (get moment :season)))
+
+(defn match-month
+  "Return non-nil when VALUE names the local month of MOMENT.
+VALUE is a month number from 1 to 12, or a list of them."
+  [value moment]
+  (member-or-eq value (get moment :month)))
+
+(defn match-rising
+  "Return non-nil when VALUE agrees with the sun's direction in MOMENT.
+VALUE non-nil asks for a climbing sun, nil for a sinking one."
+  [value moment]
+  (eq (not value) (not (get moment :rising))))
+
+(defn match-period
+  "Return non-nil when one of MOMENT's periods matches VALUE.
+VALUE is a regexp or a list of regexps matched against the names of the
+holidays and date spans in effect."
+  [value moment]
+  (let [patterns (if (stringp value) (list value) value)]
+    (seq-some (fn [label]
+                (seq-some (fn [re] (string-match-p re label)) patterns))
+              (get moment :periods))))
+
+(defn match-hour
+  "Return non-nil when MOMENT's local hour lies in VALUE.
+VALUE is (FROM TO): FROM inclusive, TO exclusive, wrapping at midnight
+when TO is not after FROM."
+  [value moment]
+  (let [h (get moment :hour)
+        from (nth value 0)
+        to (nth value 1)]
+    (if (< from to)
+      (and (<= from h) (< h to))
+      (or (>= h from) (< h to)))))
+
+(defn match-altitude
+  "Return non-nil when the sun's altitude in MOMENT lies in VALUE.
+VALUE is (MIN MAX) in degrees: MIN inclusive, MAX exclusive, and nil for
+either end means unbounded."
+  [value moment]
+  (let [a (get moment :altitude)
+        lo (nth value 0)
+        hi (nth value 1)]
+    (and (or (null lo) (>= a lo))
+         (or (null hi) (< a hi)))))
+
+(defn match-predicate
+  "Return the result of calling the function VALUE with MOMENT."
+  [value moment]
+  (funcall value moment))
+
+(defvar tod-look-criteria
+  (list (cons :phase #'match-phase)
+        (cons :season #'match-season)
+        (cons :month #'match-month)
+        (cons :rising #'match-rising)
+        (cons :period #'match-period)
+        (cons :hour #'match-hour)
+        (cons :altitude #'match-altitude)
+        (cons :when #'match-predicate))
+  "Alist of rule criteria: (KEY . FUNCTION).
+FUNCTION is called with the rule's value for KEY and the moment, and
+returns non-nil when the criterion holds.  Add an entry to make KEY
+usable in `tod-looks'.")
+
+(defn criterion-p
+  "Return non-nil when KEY is a registered criterion in CRITERIA."
+  [key criteria]
+  (assq key criteria))
+
+(defn rule-keys
+  "Return the keys of the plist RULE, in order."
+  [rule]
+  (loop [p rule
+         acc nil]
+    (if (consp p)
+      (recur (nthcdr 2 p) (cons (car p) acc))
+      (nreverse acc))))
+
+(defn rule-matches-p
+  "Return non-nil when MOMENT satisfies every criterion of RULE.
+CRITERIA is an alist of (KEY . FUNCTION) as in `tod-look-criteria'."
+  [rule moment criteria]
+  (seq-every-p (fn [k]
+                 (let [entry (criterion-p k criteria)]
+                   (or (null entry)
+                       (funcall (cdr entry) (plist-get rule k) moment))))
+               (rule-keys rule)))
+
+(defn attribute-keys
+  "Return every attribute key used in RULES, in first-seen order.
+Keys registered in CRITERIA are criteria, not attributes."
+  [rules criteria]
+  (seq-uniq (seq-remove (fn [k] (criterion-p k criteria))
+                        (mapcan (fn [rule] (rule-keys rule)) rules))))
+
+(defn pick-available
+  "Return the first element of VALUE that AVAILABLE-P accepts.
+VALUE may be a single item or a list of alternatives in preference
+order.  Returns nil when none is available."
+  [value available-p]
+  (seq-find (fn [v] (funcall available-p v))
+            (if (and (consp value) (not (functionp value))) value (list value))))
+
+(defn resolve
+  "Return the look for MOMENT as an alist of attribute to value.
+RULES is an ordered list of rule plists and CRITERIA an alist of
+\\(KEY . FUNCTION).  Each attribute takes its value from the first
+matching rule that sets it.  The :theme attribute may list alternatives;
+the first one AVAILABLE-P accepts wins, and a rule whose alternatives are
+all unavailable is skipped."
+  [rules moment criteria available-p]
+  (let [matching (seq-filter (fn [rule] (rule-matches-p rule moment criteria)) rules)]
+    (delq nil
+          (mapcar (fn [k]
+                    (let [value (if (eq k :theme)
+                                  (seq-some (fn [rule]
+                                              (when (plist-member rule :theme)
+                                                (pick-available (plist-get rule :theme) available-p)))
+                                            matching)
+                                  (let [rule (seq-find (fn [r] (plist-member r k)) matching)]
+                                    (when rule (plist-get rule k))))]
+                      (when value (cons k value))))
+                  (attribute-keys rules criteria)))))

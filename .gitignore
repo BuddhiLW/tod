@@ -1,0 +1,6 @@
+.cache/
+.cpcache/
+.clel-cache/
+.nrepl-port
+*.elc
+.claude/

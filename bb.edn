@@ -1,0 +1,87 @@
+;; tod is written in ClojureElisp: src/**/*.cljel compiles to tod*.el at the
+;; repository root, which is what MELPA packages. The .el files are committed;
+;; `bb check-generated` fails when they drift from their sources.
+;;
+;; The compiler is a git dependency pinned to a clojure-elisp release tag.
+{:deps {io.github.buddhilw/clojure-elisp
+        {:git/url "https://github.com/BuddhiLW/clojure-elisp"
+         :git/tag "v0.8.0"
+         :git/sha "679442cd4f784f78f900caa57c3c03d2f2e0c2c1"}}
+
+ :tasks
+ {:requires ([babashka.fs :as fs]
+             [babashka.process :as p]
+             [clojure.string :as str])
+
+  :init
+  (do
+    (def cache-dir ".cache")
+
+    (defn el-files []
+      (->> (fs/glob "." "tod*.el") (map str) sort vec))
+
+    (defn test-files []
+      (->> (fs/glob "test" "*-test.el") (map str) sort vec))
+
+    (defn emacs!
+      "Run emacs -Q --batch with the package and cache on the load path."
+      [& args]
+      (let [{:keys [exit]} (apply p/shell {:continue true}
+                                  (into ["emacs" "-Q" "--batch" "-L" "." "-L" cache-dir]
+                                        args))]
+        (when-not (zero? exit) (System/exit exit)))))
+
+  compile
+  {:doc "Compile src/**/*.cljel to tod*.el at the repository root"
+   :requires ([clojure-elisp.core :as clel])
+   :task (let [r (clel/compile-project ["src"] ".")]
+           (doseq [{:keys [output]} (:compiled r (if (sequential? r) r []))]
+             (println "compiled" output))
+           r)}
+
+  runtime
+  {:doc "Write clel.el, the ClojureElisp runtime, into .cache/ for tests and linting"
+   :requires ([clojure-elisp.core :as clel])
+   :task (do (fs/create-dirs cache-dir)
+             (clel/bundle-runtime! cache-dir))}
+
+  test
+  {:doc "Run the ERT suite against the compiled package"
+   :depends [compile runtime]
+   :task (apply emacs! (concat ["-l" "ert"]
+                               (mapcat (fn [f] ["-l" f]) (test-files))
+                               ["-f" "ert-run-tests-batch-and-exit"]))}
+
+  byte-compile
+  {:doc "Byte-compile every tod*.el with warnings as errors"
+   :depends [compile runtime]
+   :task (let [out (str (fs/create-dirs (fs/path cache-dir "elc")))]
+           (apply emacs! (concat ["--eval" (str "(setq byte-compile-error-on-warn t"
+                                                " byte-compile-dest-file-function"
+                                                " (lambda (f) (expand-file-name"
+                                                " (concat (file-name-nondirectory f) \"c\") \"" out "\")))")
+                                  "-f" "batch-byte-compile"]
+                                 (el-files))))}
+
+  checkdoc
+  {:doc "Run checkdoc over every tod*.el; any diagnostic fails"
+   :depends [compile]
+   :task (apply emacs! (concat ["-l" "scripts/lint-checkdoc.el"] (el-files)))}
+
+  check-generated
+  {:doc "Fail when the committed tod*.el differ from what src/ compiles to"
+   :depends [compile]
+   :task (let [{:keys [exit]} (p/shell {:continue true}
+                                       "git diff --exit-code --stat -- tod*.el")]
+           (when-not (zero? exit)
+             (println "tod*.el is stale: run `bb compile` and commit the result")
+             (System/exit exit)))}
+
+  package-lint
+  {:doc "Run package-lint (installed from MELPA into .cache/elpa)"
+   :depends [compile runtime]
+   :task (apply emacs! (concat ["-l" "scripts/lint-package.el"] (el-files)))}
+
+  lint
+  {:doc "byte-compile + checkdoc + package-lint"
+   :depends [byte-compile checkdoc package-lint]}}}

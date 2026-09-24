@@ -1,0 +1,334 @@
+(ns tod.wallpaper
+  "Desktop wallpaper: which file, which setter, and running it.
+
+A setter is data: an alist with :id, :kind (image or video), :session
+\\(the display servers it works on), :desktops (XDG_CURRENT_DESKTOP names,
+nil meaning any), :exclude, :priority, :requires (programs that must be
+installed), an optional :probe function, and :commands, the argument
+lists that set a file.  :commands is either a list of argument lists
+with \"{path}\" and \"{uri}\" placeholders or a function of the path
+returning such a list.  Setters never start processes themselves: one
+runner executes every setter's commands, so all setters behave alike
+and new ones only need registering."
+  (:require [tod.process :as process]
+            [url-util]
+            [subr-x]))
+
+(def image-extensions
+  "File extensions treated as still images."
+  (list "png" "jpg" "jpeg" "webp" "avif" "bmp" "tif" "tiff"))
+
+(def video-extensions
+  "File extensions treated as animated wallpapers."
+  (list "mp4" "webm" "mkv" "mov" "avi" "gif"))
+
+(defn file-kind
+  "Return image, video or nil for the wallpaper file PATH."
+  [path]
+  (let [ext (downcase (or (file-name-extension path) ""))]
+    (cond
+      (member ext image-extensions) 'image
+      (member ext video-extensions) 'video
+      :else nil)))
+
+(defn file-uri
+  "Return the file:// URI of PATH with every unsafe byte escaped."
+  [path]
+  (str "file://" (url-hexify-string (expand-file-name path) url-path-allowed-chars)))
+
+(defn expand-template
+  "Return the argument list ARGV with {path} and {uri} replaced for PATH."
+  [argv path]
+  (let [uri (file-uri path)]
+    (mapcar (fn [arg]
+              (string-replace "{uri}" uri (string-replace "{path}" (expand-file-name path) arg)))
+            argv)))
+
+(defn setter-commands
+  "Return the command argument lists through which SETTER displays PATH."
+  [setter path]
+  (let [commands (get setter :commands)]
+    (if (functionp commands)
+      (funcall commands path)
+      (mapcar (fn [argv] (expand-template argv path)) commands))))
+
+;;; Session detection
+
+(defn session-type
+  "Return the display server of this Emacs as wayland, x11 or nil.
+XDG_SESSION_TYPE wins; WAYLAND_DISPLAY is checked before DISPLAY because
+Xwayland sets DISPLAY on Wayland sessions too."
+  []
+  (let [declared (getenv "XDG_SESSION_TYPE")]
+    (cond
+      (equal declared "wayland") 'wayland
+      (equal declared "x11") 'x11
+      (getenv "WAYLAND_DISPLAY") 'wayland
+      (getenv "DISPLAY") 'x11
+      :else nil)))
+
+(defn desktop-names
+  "Return the lower-cased desktop names of this session.
+They come from XDG_CURRENT_DESKTOP, falling back to DESKTOP_SESSION,
+plus hyprland and sway when their instance variables are set."
+  []
+  (let [raw (or (getenv "XDG_CURRENT_DESKTOP") (getenv "DESKTOP_SESSION") "")
+        names (mapcar #'downcase (split-string raw ":" true))]
+    (append names
+            (when (getenv "HYPRLAND_INSTANCE_SIGNATURE") (list "hyprland"))
+            (when (getenv "SWAYSOCK") (list "sway")))))
+
+(defn setter-applies-p
+  "Return non-nil when SETTER's rules accept SESSION and DESKTOPS.
+SESSION is wayland, x11 or nil and DESKTOPS a list of lower-cased names."
+  [setter session desktops]
+  (let [sessions (get setter :session)
+        wanted (get setter :desktops)
+        excluded (get setter :exclude)]
+    (and (or (null sessions) (memq session sessions))
+         (or (null wanted) (seq-some (fn [d] (member d wanted)) desktops))
+         (not (seq-some (fn [d] (member d excluded)) desktops)))))
+
+(defn candidates
+  "Return the SETTERS of KIND that apply to SESSION and DESKTOPS.
+The result is ordered by :priority, highest first, keeping registration
+order among equals."
+  [setters kind session desktops]
+  (seq-sort-by (fn [s] (- (or (get s :priority) 0)))
+               #'<
+               (seq-filter (fn [s] (and (eq (get s :kind) kind)
+                                         (setter-applies-p s session desktops)))
+                           setters)))
+
+(defn missing
+  "Return the reasons SETTER cannot run here, or nil when it is ready.
+Missing programs from :requires are listed first, then the :probe
+result when the probe returns a string."
+  [setter]
+  (let [programs (seq-remove #'executable-find (get setter :requires))
+        probe (get setter :probe)
+        verdict (when (and (null programs) probe) (funcall probe))]
+    (append (mapcar (fn [p] (str "program " p)) programs)
+            (when (stringp verdict) (list verdict)))))
+
+(defn select
+  "Return the first ready setter of KIND among SETTERS, or nil.
+SESSION and DESKTOPS default to this Emacs session when nil is passed."
+  [setters kind session desktops]
+  (seq-find (fn [s] (null (missing s)))
+            (candidates setters kind
+                        (or session (session-type))
+                        (or desktops (desktop-names)))))
+
+;;; Built-in setters
+
+(defn- gsettings-writable-p
+  "Return nil when gsettings can write KEY in SCHEMA, else a reason."
+  [schema key]
+  (let [out (condition-case nil
+                (car (process-lines "gsettings" "writable" schema key))
+              (error nil))]
+    (if (equal out "true") nil (str "gsettings cannot write " schema " " key))))
+
+(defn- probe-gnome
+  "Return nil when GNOME's background keys are writable, else a reason."
+  []
+  (gsettings-writable-p "org.gnome.desktop.background" "picture-uri"))
+
+(defn- probe-lazywal
+  "Return nil when lazywal reports a ready backend, else a reason.
+Releases without the backends command only drive X11 players."
+  []
+  (let [out (condition-case nil
+                (process-lines "lazywal" "backends")
+              (error nil))
+        selected (seq-find (fn [line] (string-prefix-p "* " line)) out)]
+    (cond
+      (null selected) (if (eq (session-type) 'x11) nil "lazywal has no ready backend here")
+      (string-match-p "missing" selected) (str "lazywal: " (string-trim selected))
+      :else nil)))
+
+(defn- xfce-commands
+  "Return the xfconf-query commands that show PATH on every Xfce monitor."
+  [path]
+  (let [props (condition-case nil
+                  (process-lines "xfconf-query" "-c" "xfce4-desktop" "-l")
+                (error nil))
+        wanted (seq-filter (fn [p] (string-match-p "/\\(last-image\\|image-path\\)\\'" p)) props)]
+    (mapcar (fn [p] (list "xfconf-query" "-c" "xfce4-desktop" "-p" p "-s" (expand-file-name path)))
+            wanted)))
+
+(defn- swaybg-commands
+  "Return the commands that replace any swaybg with one showing PATH.
+swaybg runs until killed, so it is detached from Emacs with setsid."
+  [path]
+  (list (list "sh" "-c" "pkill -x swaybg; true")
+        (list "setsid" "-f" "swaybg" "-m" "fill" "-i" (expand-file-name path))))
+
+(defn- hyprpaper-commands
+  "Return the hyprctl command to display PATH on every monitor."
+  [path]
+  (list (list "hyprctl" "hyprpaper" "wallpaper" (str "," (expand-file-name path)))))
+
+(def builtin-setters
+  "Setters tod knows out of the box, as alists."
+  (list {:id 'gnome :kind 'image :session (list 'wayland 'x11)
+         :desktops (list "gnome" "ubuntu" "unity" "gnome-classic")
+         :exclude (list "budgie" "pantheon" "gnome-flashback")
+         :priority 100 :requires (list "gsettings") :probe #'probe-gnome
+         :commands (list (list "gsettings" "set" "org.gnome.desktop.background" "picture-uri" "{uri}")
+                         (list "gsettings" "set" "org.gnome.desktop.background" "picture-uri-dark" "{uri}"))}
+        {:id 'cinnamon :kind 'image :session (list 'x11 'wayland) :desktops (list "x-cinnamon" "cinnamon")
+         :priority 100 :requires (list "gsettings")
+         :commands (list (list "gsettings" "set" "org.cinnamon.desktop.background" "picture-uri" "{uri}"))}
+        {:id 'mate :kind 'image :session (list 'x11) :desktops (list "mate")
+         :priority 100 :requires (list "gsettings")
+         :commands (list (list "gsettings" "set" "org.mate.background" "picture-filename" "{path}"))}
+        {:id 'plasma :kind 'image :session (list 'wayland 'x11) :desktops (list "kde" "plasma")
+         :priority 100 :requires (list "plasma-apply-wallpaperimage")
+         :commands (list (list "plasma-apply-wallpaperimage" "{path}"))}
+        {:id 'xfce :kind 'image :session (list 'x11 'wayland) :desktops (list "xfce")
+         :priority 100 :requires (list "xfconf-query") :commands #'xfce-commands}
+        {:id 'hyprpaper :kind 'image :session (list 'wayland) :desktops (list "hyprland")
+         :priority 90 :requires (list "hyprctl") :commands #'hyprpaper-commands}
+        {:id 'sway :kind 'image :session (list 'wayland) :desktops (list "sway")
+         :priority 80 :requires (list "swaymsg")
+         :commands (list (list "swaymsg" "output" "*" "bg" "{path}" "fill"))}
+        {:id 'swww :kind 'image :session (list 'wayland) :exclude (list "gnome" "ubuntu" "kde" "plasma")
+         :priority 60 :requires (list "swww")
+         :commands (list (list "swww" "img" "{path}"))}
+        {:id 'swaybg :kind 'image :session (list 'wayland) :exclude (list "gnome" "ubuntu" "kde" "plasma")
+         :priority 40 :requires (list "swaybg" "setsid") :commands #'swaybg-commands}
+        {:id 'feh :kind 'image :session (list 'x11) :priority 20 :requires (list "feh")
+         :commands (list (list "feh" "--no-fehbg" "--bg-fill" "{path}"))}
+        {:id 'xwallpaper :kind 'image :session (list 'x11) :priority 15 :requires (list "xwallpaper")
+         :commands (list (list "xwallpaper" "--zoom" "{path}"))}
+        {:id 'nitrogen :kind 'image :session (list 'x11) :priority 10 :requires (list "nitrogen")
+         :commands (list (list "nitrogen" "--set-zoom-fill" "{path}"))}
+        {:id 'lazywal :kind 'video :session (list 'wayland 'x11) :priority 100
+         :requires (list "lazywal") :probe #'probe-lazywal
+         :commands (list (list "lazywal" "set" "{path}"))}))
+
+(defvar tod-wallpaper-setters builtin-setters
+  "Registered wallpaper setters, as alists; see the tod.wallpaper docs.
+Use `tod-wallpaper-register-setter' to add or replace one.")
+
+(defn register-setter
+  "Add SETTER to `tod-wallpaper-setters', replacing one with its :id.
+SETTER is an alist with at least :id, :kind and :commands."
+  [setter]
+  (let [id (get setter :id)]
+    (setq tod-wallpaper-setters
+          (cons setter (seq-remove (fn [s] (eq (get s :id) id)) tod-wallpaper-setters)))
+    id))
+
+;;; Choosing a file
+
+(defn- wallpaper-files
+  "Return the image and video files directly inside DIRECTORY, sorted."
+  [directory]
+  (when (file-directory-p directory)
+    (sort (fn [a b] (string< a b))
+          (seq-filter (fn [f] (and (file-regular-p f) (file-kind f)))
+                      (directory-files directory true "\\`[^.]")))))
+
+(defn layout-directories
+  "Return the directories searched under ROOT for MOMENT, best first.
+Calendar periods come first (ROOT/_period/NAME/PHASE, then .../any),
+then the month, then season and phase with any as a wildcard."
+  [root moment]
+  (let [phase (symbol-name (get moment :phase))
+        season (symbol-name (get moment :season))
+        month (format "%02d" (get moment :month))
+        periods (get moment :periods)]
+    (mapcar (fn [parts] (expand-file-name (string-join parts "/") root))
+            (append (mapcan (fn [p] (list (list "_period" p phase) (list "_period" p "any"))) periods)
+                    (list (list "_month" month phase)
+                          (list "_month" month "any")
+                          (list season phase)
+                          (list "any" phase)
+                          (list season "any")
+                          (list "any" "any"))))))
+
+(defn pick-file
+  "Return one of FILES chosen stably for MOMENT, or nil when FILES is empty.
+The same date and phase always give the same file, so re-resolving does
+not flip the wallpaper, while different days rotate through FILES."
+  [files moment]
+  (when files
+    (nth files (mod (sxhash-equal (list (get moment :date) (get moment :phase)))
+                    (length files)))))
+
+(defn choose-file
+  "Return the wallpaper file for SPEC and MOMENT, or nil.
+SPEC is a file, a directory to pick from, or t for the season and phase
+layout under ROOT."
+  [spec moment root]
+  (cond
+    (and (stringp spec) (file-regular-p spec)) (expand-file-name spec)
+    (and (stringp spec) (file-directory-p spec)) (pick-file (wallpaper-files spec) moment)
+    (and (eq spec true) root)
+    (seq-some (fn [dir] (pick-file (wallpaper-files dir) moment))
+              (layout-directories root moment))
+    :else nil))
+
+(defn frame-command
+  "Return the ffmpeg command extracting one frame of VIDEO into OUTPUT."
+  [video output]
+  (list "ffmpeg" "-y" "-loglevel" "error" "-ss" "1" "-i" (expand-file-name video)
+        "-frames:v" "1" "-q:v" "2" output))
+
+(defn frame-path
+  "Return the cached still-frame path for VIDEO under CACHE-DIR."
+  [video cache-dir]
+  (expand-file-name (str (secure-hash 'sha1 (expand-file-name video)) ".png")
+                    (expand-file-name "frames" cache-dir)))
+
+(defn plan
+  "Return how to show FILE here, as an alist, or one explaining why not.
+SETTERS are the registered setters and CACHE-DIR holds extracted video
+frames.  The result has :setter, :commands and :image (the still image
+that represents FILE, for palettes), or :error."
+  [file setters cache-dir]
+  (let [kind (file-kind file)
+        video-setter (when (eq kind 'video) (select setters 'video nil nil))
+        image-setter (select setters 'image nil nil)]
+    (cond
+      (null kind)
+      {:error (str "not a wallpaper file: " file)}
+
+      video-setter
+      (let [still (frame-path file cache-dir)]
+        {:setter (get video-setter :id)
+         :commands (append (setter-commands video-setter file)
+                           (when (executable-find "ffmpeg")
+                             (list (list "mkdir" "-p" (file-name-directory still))
+                                   (frame-command file still))))
+         :image (when (executable-find "ffmpeg") still)})
+
+      (and (eq kind 'video) image-setter (executable-find "ffmpeg"))
+      (let [still (frame-path file cache-dir)]
+        {:setter (get image-setter :id)
+         :commands (append (list (list "mkdir" "-p" (file-name-directory still))
+                                 (frame-command file still))
+                           (setter-commands image-setter still))
+         :image still})
+
+      (and (eq kind 'image) image-setter)
+      {:setter (get image-setter :id)
+       :commands (setter-commands image-setter file)
+       :image (expand-file-name file)}
+
+      :else
+      {:error (format "no ready %s wallpaper setter for this session" kind)})))
+
+(defn apply-file
+  "Show FILE as the wallpaper and call DONE with OK and a message.
+SETTERS are the registered setters and CACHE-DIR holds video frames.
+Returns the plan that was run."
+  [file setters cache-dir done]
+  (let [p (plan file setters cache-dir)]
+    (if (get p :error)
+      (when done (funcall done nil (get p :error)))
+      (process/run 'wallpaper (get p :commands) done))
+    p))
