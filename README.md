@@ -66,6 +66,13 @@ one supplies the wallpaper.
 | `:period`   | regexp matched against holiday and `tod-periods` names |
 | `:hour`     | `(FROM TO)`, local hours, wrapping at midnight |
 | `:altitude` | `(MIN MAX)` degrees, `nil` for an open end |
+| `:moon`     | `new-moon`, `waxing-crescent`, `first-quarter`, `waxing-gibbous`, `full-moon`, `waning-gibbous`, `last-quarter`, `waning-crescent`, or a list |
+| `:illumination` | `(MIN MAX)`, the moon's lit fraction from 0 to 1 |
+| `:zodiac`   | the sun's tropical sign: `aries` … `pisces`, or a list |
+| `:moon-sign`| the moon's tropical sign, or a list |
+| `:element`  | element of the sun's sign: `fire`, `earth`, `air`, `water` |
+| `:planet`   | ruler of the planetary hour: `sun`, `moon`, `mars`, `mercury`, `jupiter`, `venus`, `saturn` |
+| `:day-ruler`| ruler of the planetary day, which begins at sunrise |
 | `:when`     | a function of the moment |
 
 New criteria are one entry in `tod-look-criteria`. The phase ladder itself is
@@ -75,7 +82,48 @@ New criteria are one entry in `tod-look-criteria`. The phase ladder itself is
 |--------------|-------|
 | `:theme`     | a theme, or a list of alternatives tried in order |
 | `:wallpaper` | a file, a directory to pick from, or `t` for the layout below |
-| `:palette`   | `wal` to build the theme from the wallpaper with pywal |
+| `:palette`   | `wal` to build the theme from the wallpaper with pywal, `sky` to paint it from the sky |
+
+## The sky
+
+Every moment also carries the moon, the zodiac and the planetary hour, so
+rules can match them and `M-x tod-describe` lists them:
+
+```
+Moon       Waxing gibbous, 77% lit, 10.1 days old, down (-25° altitude)
+Sun sign   Libra 28°, decan 3, cardinal air
+Moon sign  Pisces
+Day ruler  Mercury
+Hour       Venus, planetary hour 7 of 24 (11:23 to 12:24)
+```
+
+The moon follows the main terms of Meeus, *Astronomical Algorithms*,
+chapter 47, to a few tenths of a degree. Signs are tropical. Planetary
+hours split daylight and darkness into twelve unequal hours each, ruled
+in Chaldean order from the planet of the weekday at sunrise; where the
+sun neither rises nor sets they fall back to clock hours from 06:00.
+`tod-mode` wakes at every planetary hour as well as at every twilight
+boundary.
+
+```elisp
+(setq tod-looks
+      '((:moon full-moon :phase night :theme ef-dream)
+        (:planet saturn :phase day :theme ef-frost)
+        (:palette sky)))
+```
+
+### Sky palette
+
+With `:palette sky` tod paints its own theme, `tod-sky`, from the sky and
+repaints it every `tod-sky-interval` seconds (300 by default). The
+background follows the sun's altitude through midnight blue, violet
+twilight, amber golden hour and clear noon; a setting sun is warmer than a
+rising one, morning light is cooler than afternoon light, a high bright
+moon silvers the night, and the element of the sun's sign tints it.
+Accents grow more vivid as the sun climbs and warm while it is low, and
+the cursor takes the colour of the planet ruling the hour. Every colour
+is repaired to `tod-minimum-contrast` against the background, body text
+to 7:1.
 
 ## Wallpapers
 
@@ -115,8 +163,13 @@ pywal runs isolated in tod's cache by default. Set `tod-palette-scope` to
 
 ## Development
 
+The runtime, [clel](https://melpa.org/#/clel), comes from MELPA like any
+other dependency; `scripts/deps.el` installs it into `.cache/elpa` for the
+batch runs below and for CI.
+
 ```
 bb compile          # src/**/*.cljel -> tod*.el
+bb runtime          # install clel from MELPA into .cache/elpa
 bb test             # ERT suite in emacs -Q --batch
 bb lint             # byte-compile (warnings are errors), checkdoc, package-lint
 bb check-generated  # fail when the committed tod*.el are stale

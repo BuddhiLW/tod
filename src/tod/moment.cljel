@@ -8,7 +8,8 @@ calendar periods (holidays and date spans) in effect.  Look rules match
 against it."
   (:require [tod.sun :as sun]
             [calendar]
-            [holidays]))
+            [holidays]
+            [tod.sky :as sky]))
 
 (def default-ladder
   "Phases of the day by the sun's minimum altitude in degrees.
@@ -77,24 +78,27 @@ HOLIDAYS has the shape of `calendar-holidays'; DAY is (MONTH DAY YEAR)."
   "Return the moment at TIME for LATITUDE and LONGITUDE.
 LADDER is a list of (PHASE MIN-ALTITUDE), highest first.  HOLIDAYS has
 the shape of `calendar-holidays' and SPANS is a list of
-\\(NAME (MONTH DAY) (MONTH DAY)); both feed the :periods entry."
+\\(NAME (MONTH DAY) (MONTH DAY)); both feed the :periods entry.  The
+moon, the zodiac and the planetary hour come from `tod-sky-at'."
   [time latitude longitude ladder holidays spans]
   (let [local (decode-time time)
         day (local-date time)
         altitude (sun/altitude time latitude longitude)]
-    {:time time
-     :latitude latitude
-     :longitude longitude
-     :altitude altitude
-     :azimuth (sun/azimuth time latitude longitude)
-     :rising (sun/rising-p time latitude longitude)
-     :phase (phase-for-altitude ladder altitude)
-     :season (sun/season time latitude)
-     :season-progress (sun/season-progress time latitude)
-     :date day
-     :month (decoded-time-month local)
-     :hour (decoded-time-hour local)
-     :periods (append (holiday-names day holidays) (span-names day spans))}))
+    (append {:time time
+             :latitude latitude
+             :longitude longitude
+             :altitude altitude
+             :azimuth (sun/azimuth time latitude longitude)
+             :rising (sun/rising-p time latitude longitude)
+             :phase (phase-for-altitude ladder altitude)
+             :season (sun/season time latitude)
+             :season-progress (sun/season-progress time latitude)
+             :date day
+             :month (decoded-time-month local)
+             :hour (decoded-time-hour local)
+             :minute (decoded-time-minute local)
+             :periods (append (holiday-names day holidays) (span-names day spans))}
+            (sky/at time latitude longitude))))
 
 (defn next-change
   "Return the Lisp time of the next phase boundary after TIME, or nil.

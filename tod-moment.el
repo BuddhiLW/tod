@@ -30,6 +30,7 @@
 (require 'tod-sun)
 (require 'calendar)
 (require 'holidays)
+(require 'tod-sky)
 
 (defvar tod-moment-default-ladder
     (list (list 'day 6.0)
@@ -90,24 +91,28 @@ HOLIDAYS has the shape of `calendar-holidays'; DAY is (MONTH DAY YEAR)."
   "Return the moment at TIME for LATITUDE and LONGITUDE.
 LADDER is a list of (PHASE MIN-ALTITUDE), highest first.  HOLIDAYS has
 the shape of `calendar-holidays' and SPANS is a list of
-\\(NAME (MONTH DAY) (MONTH DAY)); both feed the :periods entry."
+\\(NAME (MONTH DAY) (MONTH DAY)); both feed the :periods entry.  The
+moon, the zodiac and the planetary hour come from `tod-sky-at'."
   (let* ((local (decode-time time))
          (day (tod-moment-local-date time))
          (altitude (tod-sun-altitude time latitude longitude)))
-    (clel-array-map :time time
-                    :latitude latitude
-                    :longitude longitude
-                    :altitude altitude
-                    :azimuth (tod-sun-azimuth time latitude longitude)
-                    :rising (tod-sun-rising-p time latitude longitude)
-                    :phase (tod-moment-phase-for-altitude ladder altitude)
-                    :season (tod-sun-season time latitude)
-                    :season-progress (tod-sun-season-progress time latitude)
-                    :date day
-                    :month (decoded-time-month local)
-                    :hour (decoded-time-hour local)
-                    :periods (append (tod-moment-holiday-names day holidays)
-                                     (tod-moment-span-names day spans)))))
+    (append
+     (clel-array-map :time time
+                     :latitude latitude
+                     :longitude longitude
+                     :altitude altitude
+                     :azimuth (tod-sun-azimuth time latitude longitude)
+                     :rising (tod-sun-rising-p time latitude longitude)
+                     :phase (tod-moment-phase-for-altitude ladder altitude)
+                     :season (tod-sun-season time latitude)
+                     :season-progress (tod-sun-season-progress time latitude)
+                     :date day
+                     :month (decoded-time-month local)
+                     :hour (decoded-time-hour local)
+                     :minute (decoded-time-minute local)
+                     :periods (append (tod-moment-holiday-names day holidays)
+                                      (tod-moment-span-names day spans)))
+     (tod-sky-at time latitude longitude))))
 
 (defun tod-moment-next-change (time latitude longitude ladder)
   "Return the Lisp time of the next phase boundary after TIME, or nil.

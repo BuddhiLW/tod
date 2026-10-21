@@ -85,6 +85,46 @@ either end means unbounded."
          (hi (clel-nth value 1)))
     (and (or (null lo) (>= a lo)) (or (null hi) (< a hi)))))
 
+(defun tod-look-match-moon (value moment)
+  "Return non-nil when VALUE names the lunar phase of MOMENT.
+VALUE is a phase symbol such as full-moon, or a list of them."
+  (tod-look--member-or-eq value (clel-get moment :moon-phase)))
+
+(defun tod-look-match-zodiac (value moment)
+  "Return non-nil when VALUE names the sun's tropical sign in MOMENT.
+VALUE is a sign symbol such as scorpio, or a list of them."
+  (tod-look--member-or-eq value (clel-get moment :zodiac)))
+
+(defun tod-look-match-moon-sign (value moment)
+  "Return non-nil when VALUE names the moon's tropical sign in MOMENT.
+VALUE is a sign symbol, or a list of them."
+  (tod-look--member-or-eq value (clel-get moment :moon-sign)))
+
+(defun tod-look-match-element (value moment)
+  "Return non-nil when VALUE names the element of the sun's sign.
+VALUE is fire, earth, air or water, or a list of them; MOMENT supplies
+the sign."
+  (tod-look--member-or-eq value (clel-get moment :element)))
+
+(defun tod-look-match-planet (value moment)
+  "Return non-nil when VALUE names the planet ruling MOMENT's hour.
+VALUE is a classical planet symbol, or a list of them."
+  (tod-look--member-or-eq value (clel-get moment :planet)))
+
+(defun tod-look-match-day-ruler (value moment)
+  "Return non-nil when VALUE names the planet ruling MOMENT's day.
+VALUE is a classical planet symbol, or a list of them."
+  (tod-look--member-or-eq value (clel-get moment :day-ruler)))
+
+(defun tod-look-match-illumination (value moment)
+  "Return non-nil when the moon's lit fraction in MOMENT lies in VALUE.
+VALUE is (MIN MAX) between 0 and 1: MIN inclusive, MAX exclusive, and
+nil for either end means unbounded."
+  (let* ((a (clel-get moment :illumination))
+         (lo (clel-nth value 0))
+         (hi (clel-nth value 1)))
+    (and a (or (null lo) (>= a lo)) (or (null hi) (< a hi)))))
+
 (defun tod-look-match-predicate (value moment)
   "Return the result of calling the function VALUE with MOMENT."
   (funcall value moment))
@@ -97,6 +137,13 @@ either end means unbounded."
           (cons :period #'tod-look-match-period)
           (cons :hour #'tod-look-match-hour)
           (cons :altitude #'tod-look-match-altitude)
+          (cons :moon #'tod-look-match-moon)
+          (cons :illumination #'tod-look-match-illumination)
+          (cons :zodiac #'tod-look-match-zodiac)
+          (cons :moon-sign #'tod-look-match-moon-sign)
+          (cons :element #'tod-look-match-element)
+          (cons :planet #'tod-look-match-planet)
+          (cons :day-ruler #'tod-look-match-day-ruler)
           (cons :when #'tod-look-match-predicate))
   "Alist of rule criteria: (KEY . FUNCTION).
 FUNCTION is called with the rule's value for KEY and the moment, and

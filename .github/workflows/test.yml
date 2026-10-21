@@ -16,22 +16,19 @@ jobs:
       - uses: purcell/setup-emacs@master
         with:
           version: ${{ matrix.emacs }}
-      - name: Fetch the ClojureElisp runtime, clel
-        run: |
-          mkdir -p .cache
-          curl -fsSL -o .cache/clel.el \
-            https://raw.githubusercontent.com/BuddhiLW/clojure-elisp/v0.8.1/resources/clojure-elisp/clel.el
+      - name: Install the ClojureElisp runtime, clel, from MELPA
+        run: emacs -Q --batch -l scripts/deps.el
       - name: Byte-compile, warnings as errors
         run: |
-          emacs -Q --batch -L . -L .cache \
+          emacs -Q --batch -L . -l scripts/deps.el \
             --eval '(setq byte-compile-error-on-warn t)' \
             -f batch-byte-compile tod*.el
       - name: ERT
         run: |
-          emacs -Q --batch -L . -L .cache -l ert \
+          emacs -Q --batch -L . -l scripts/deps.el -l ert \
             $(for f in test/*-test.el; do printf -- '-l %s ' "$f"; done) \
             -f ert-run-tests-batch-and-exit
       - name: checkdoc
-        run: emacs -Q --batch -L . -L .cache -l scripts/lint-checkdoc.el tod*.el
+        run: emacs -Q --batch -L . -l scripts/deps.el -l scripts/lint-checkdoc.el tod*.el
       - name: package-lint
-        run: emacs -Q --batch -L . -L .cache -l scripts/lint-package.el tod*.el
+        run: emacs -Q --batch -L . -l scripts/lint-package.el tod*.el
