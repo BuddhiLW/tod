@@ -23,6 +23,6 @@ jobs:
       - name: Run melpazoid
         env:
           LOCAL_REPO: ${{ github.workspace }}
-          RECIPE: (tod :fetcher github :repo "BuddhiLW/tod" :files ("tod*.el"))
+          RECIPE: (tod :fetcher github :repo "BuddhiLW/tod")
           EXIST_OK: false
         run: make -C ~/melpazoid
