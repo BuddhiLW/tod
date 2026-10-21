@@ -1,4 +1,4 @@
-;;; tod.el --- Themes and wallpapers that follow the sun and the seasons  -*- lexical-binding: t; -*-
+;;; tod.el --- Themes and wallpapers that follow the sky and the seasons  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026 Pedro G. Branquinho
 
@@ -17,17 +17,24 @@
 ;; tod works out where the sun stands for your location: night, the three
 ;; twilights, golden hour or day, whether it is rising or setting, the
 ;; astronomical season (flipped south of the equator), the month and the
-;; calendar periods in effect.  Ordered rules in `tod-looks' turn that into
-;; a look: an Emacs theme, a desktop wallpaper, and optionally a palette
+;; calendar periods in effect.  It reads the sky as well: the moon's phase,
+;; illumination and altitude, the zodiac signs of the sun and the moon
+;; with their decan, element and modality, and the Chaldean planetary
+;; hour and day ruler.  Ordered rules in `tod-looks' turn that into a
+;; look: an Emacs theme, a desktop wallpaper, and optionally a palette
 ;; that pywal derives from the wallpaper and tod repairs to readable
 ;; contrast.  `tod-mode' keeps the look current, waking at each twilight
-;; boundary rather than polling.
+;; boundary and planetary hour rather than polling.
+;;
+;; The look (:palette sky) needs no wallpaper: it paints a theme from the
+;; sun's altitude and bearing, moonlight and the element of the sun's
+;; sign, and repaints every `tod-sky-interval' seconds.
 ;;
 ;; Set `tod-latitude' and `tod-longitude' (or `calendar-latitude' and
 ;; `calendar-longitude'), then enable `tod-mode'.  M-x tod-describe shows the
-;; sun, the season, today's boundaries and the look tod picked.  Put
-;; %%(tod-diary-sun) in a diary or Org file to see the day's twilight
-;; times in the agenda.
+;; sun, the moon, the signs, the planetary hours, today's boundaries and
+;; the look tod picked.  Put %%(tod-diary-sun) in a diary or Org file to
+;; see the day's twilight times in the agenda.
 ;;
 ;; Wallpapers come from `tod-wallpaper-directory', organised as
 ;; SEASON/PHASE/, with any for either part and _period/NAME/ or _month/MM/
@@ -441,10 +448,10 @@ midnight, the next sky repaint when the look's :palette is sky, or
 
 ;;;###autoload
 (define-minor-mode tod-mode
-  "Keep themes and wallpaper in step with the sun and the seasons.
+  "Keep themes and wallpaper in step with the sun, the moon and the seasons.
 When enabled, tod applies the look `tod-looks' gives the current moment
-and wakes at every twilight boundary, local midnight and at most every
-`tod-refresh-interval' seconds to apply the next one."
+and wakes at every twilight boundary, planetary hour, sky repaint, local
+midnight and at most every `tod-refresh-interval' seconds."
   :global t
   :lighter " tod"
   :group 'tod

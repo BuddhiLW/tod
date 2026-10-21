@@ -30,9 +30,9 @@
            "0.8.0")))
 (require 'tod-color)
 
-(declare-function modus-themes-generate-palette "modus-themes")
+(declare-function modus-themes-generate-palette "ext:modus-themes")
 
-(declare-function modus-themes-theme "modus-themes")
+(declare-function modus-themes-theme "ext:modus-themes")
 
 (defvar tod-theme--applying nil
   "Non-nil while tod itself is enabling or disabling themes.")
