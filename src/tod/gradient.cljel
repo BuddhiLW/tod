@@ -1,0 +1,210 @@
+(ns tod.gradient
+  "Palettes that follow the sky minute by minute.
+
+The background is interpolated along the sun's altitude between
+keyframes, one ladder for the dark side of the horizon and one for the
+light side, so the editor drifts from midnight blue through violet
+twilight and amber golden hour to clear noon.  A setting sun is warmer
+than a rising one, a bright moon above the horizon silvers the night,
+the element of the sun's sign tints the background, accents warm while
+the sun is low, and the cursor takes the colour of the planet ruling the
+hour.  Every colour is then repaired to readable contrast by
+`tod-palette-semantic'."
+  (:require [tod.color :as color]
+            [tod.palette :as palette]
+            [tod.theme :as theme]))
+
+(def dark-keyframes
+  "Backgrounds below the horizon as (ALTITUDE HEX), lowest first."
+  (list (list -90.0 "#04050b")
+        (list -45.0 "#090c1a")
+        (list -18.0 "#0f1630")
+        (list -12.0 "#131d3a")
+        (list -6.0 "#1d1c3c")
+        (list -3.0 "#2a203d")
+        (list 0.0 "#34232f")))
+
+(def light-keyframes
+  "Backgrounds above the horizon as (ALTITUDE HEX), lowest first."
+  (list (list 0.0 "#f2dcc4")
+        (list 3.0 "#f5e5d0")
+        (list 6.0 "#f7ecdc")
+        (list 15.0 "#f6f0e4")
+        (list 30.0 "#f2f3ef")
+        (list 60.0 "#ecf1f8")
+        (list 90.0 "#e6eefb")))
+
+(def setting-tint
+  "Colour a sinking sun mixes into twilight backgrounds."
+  "#4a1c1c")
+
+(def rising-tint
+  "Colour a climbing sun mixes into twilight backgrounds."
+  "#1f2f4a")
+
+(def moonlight
+  "Colour a bright moon mixes into the night."
+  "#2a3346")
+
+(def element-colors
+  "Alist of the tint of each element of the sun's sign."
+  (list (cons 'fire "#ff6a2b")
+        (cons 'earth "#7c8f4e")
+        (cons 'air "#a9c4ff")
+        (cons 'water "#2f7fd6")))
+
+(def planet-colors
+  "Alist of the colour of each classical planet, used for the cursor."
+  (list (cons 'sun "#f2b705")
+        (cons 'moon "#c9d1e0")
+        (cons 'mars "#e0412b")
+        (cons 'mercury "#3fb6a8")
+        (cons 'jupiter "#5b6ee1")
+        (cons 'venus "#4fbf6a")
+        (cons 'saturn "#8a6db3")))
+
+(defn interpolate
+  "Return the colour of KEYFRAMES at ALTITUDE, blending neighbours.
+KEYFRAMES is a list of (ALTITUDE HEX), lowest altitude first; outside
+its range the nearest end is used."
+  [keyframes altitude]
+  (loop [frames keyframes]
+    (let [a (first frames)
+          b (second frames)]
+      (cond
+        (null b) (second a)
+        (< altitude (first a)) (second a)
+        (<= altitude (first b))
+        (color/mix (second a) (second b)
+                   (/ (- altitude (first a)) (- (first b) (first a))))
+        :else (recur (cdr frames))))))
+
+(defn low-sun
+  "Return how strongly the sun at ALTITUDE colours the light, in [0, 1].
+It is 1 at the horizon and fades to 0 at 12 degrees either side."
+  [altitude]
+  (max 0.0 (- 1.0 (/ (abs altitude) 12.0))))
+
+(def morning-light
+  "Colour the eastern sun mixes into daytime backgrounds."
+  "#d6e4ff")
+
+(def afternoon-light
+  "Colour the western sun mixes into daytime backgrounds."
+  "#ffdcb0")
+
+(def dusk-shade
+  "Colour mixed into the night while the sun is still in the west."
+  "#2b1d4f")
+
+(def dawn-shade
+  "Colour mixed into the night once the sun has moved to the east."
+  "#103449")
+
+(defn west-ness
+  "Return how far west the sun's AZIMUTH points, from 0 east to 1 west.
+AZIMUTH is a compass bearing in degrees; nil gives nil."
+  [azimuth]
+  (when azimuth
+    (/ (- 1.0 (sin (degrees-to-radians azimuth))) 2.0)))
+
+(defn background
+  "Return the background for the sky described by MOMENT.
+MOMENT needs :altitude and :rising, and may carry :azimuth,
+:illumination, :moon-altitude and :element.  WARMTH scales the
+golden-hour tint."
+  [moment warmth]
+  (let [altitude (get moment :altitude)
+        dark (< altitude 0.0)
+        base (if dark
+               (interpolate dark-keyframes altitude)
+               (interpolate light-keyframes altitude))
+        twilight (if dark (* 0.35 (low-sun altitude)) 0.0)
+        tinted (color/mix base (if (get moment :rising) rising-tint setting-tint) twilight)
+        moon-alt (or (get moment :moon-altitude) -90.0)
+        moonlit (if (and dark (> moon-alt 0.0))
+                  (color/mix tinted moonlight (* 0.5 (or (get moment :illumination) 0.0)
+                                                 (sin (degrees-to-radians moon-alt))))
+                  tinted)
+        warm (if dark
+               moonlit
+               (color/mix moonlit palette/warm-light (* warmth (low-sun altitude))))
+        west (west-ness (get moment :azimuth))
+        drifted (cond
+                  (null west) warm
+                  dark (color/mix (color/mix warm dawn-shade (* 0.12 (- 1.0 west)))
+                                  dusk-shade (* 0.12 west))
+                  :else (color/mix (color/mix warm morning-light (* 0.10 (- 1.0 west)))
+                                   afternoon-light (* 0.10 west)))
+        elem (alist-get (get moment :element) element-colors)]
+    (if elem (color/mix drifted elem 0.03) drifted)))
+
+(defn- accent
+  "Return the accent for HUE in degrees at ALTITUDE over a background.
+DARK says whether the background is dark.  Saturation follows the sun
+from muted at the nadir to vivid at the zenith, the hue leans by up to
+6 degrees with WEST, how far west the sun stands, and accents warm
+towards `tod-palette-warm-light' by WARMTH while the sun is low."
+  [hue altitude dark warmth west]
+  (let [height (/ altitude 90.0)
+        saturation (+ 0.52 (* 0.18 height))
+        lightness (if dark (- 0.66 (* 0.06 height)) (- 0.42 (* 0.08 height)))
+        lean (* 12.0 (- (or west 0.5) 0.5))]
+    (color/mix (color/from-hsl (/ (mod (+ hue lean) 360.0) 360.0) saturation lightness)
+               palette/warm-light
+               (* 2.0 warmth (low-sun altitude)))))
+
+(defn wal
+  "Return a pywal-shaped palette for MOMENT, before contrast repair.
+WARMTH scales how much low sunlight warms the colours."
+  [moment warmth]
+  (let [bg (background moment warmth)
+        dark (color/dark-p bg)
+        altitude (get moment :altitude)
+        west (west-ness (get moment :azimuth))
+        fg (if dark "#dcdfe8" "#22242c")
+        accents (mapcar (fn [entry] (accent (second entry) altitude dark warmth west))
+                        palette/semantic-hues)]
+    {:background bg
+     :foreground fg
+     :cursor (or (alist-get (get moment :planet) planet-colors) fg)
+     :colors (append (list bg)
+                     (seq-take accents 6)
+                     (list fg (color/mix fg bg 0.45))
+                     (seq-drop accents 6)
+                     (seq-take accents 5)
+                     (list fg))}))
+
+(defn generate
+  "Return the semantic palette for MOMENT.
+WARMTH scales the low-sun tint and RATIO is the contrast every accent
+reaches, as in `tod-palette-semantic'."
+  [moment warmth ratio]
+  (palette/semantic (wal moment warmth) ratio))
+
+(defcustom tod-sky-interval 300
+  "Seconds between two repaints of a look whose :palette is sky.
+The sky palette follows the sun's altitude continuously, so a shorter
+interval means smoother change and more redraws."
+  :type 'integer
+  :group 'tod)
+
+(defvar tod-gradient--painted nil
+  "The sky palette last turned into a theme.")
+
+(defn paint
+  "Make the theme NAME follow the sky of MOMENT and return the palette.
+WARMTH and RATIO are as for `tod-gradient-generate'.  The theme is only
+redefined when the palette changed since the last call."
+  [name moment warmth ratio]
+  (let [p (generate moment warmth ratio)]
+    (when-not (and (equal p tod-gradient--painted) (memq name custom-enabled-themes))
+      (theme/define-palette-theme name p)
+      (theme/switch name)
+      (setq tod-gradient--painted p))
+    p))
+
+(defn next-repaint
+  "Return when a sky palette should next be repainted after TIME."
+  [time]
+  (time-add time tod-sky-interval))

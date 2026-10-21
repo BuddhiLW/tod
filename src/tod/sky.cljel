@@ -1,0 +1,294 @@
+(ns tod.sky
+  "The moon, the zodiac and the planetary hours.
+
+The moon's position follows the main periodic terms of Meeus,
+Astronomical Algorithms, chapter 47, good to a few tenths of a degree;
+the sun's comes from solar.el through `tod-sun-ecliptic-longitude'.
+Signs are tropical, counted from the March equinox.  Planetary hours
+split daylight and darkness into twelve unequal hours each, ruled in
+Chaldean order from the planet of the weekday at sunrise."
+  (:require [tod.sun :as sun]))
+
+(def synodic-month
+  "Mean length of the lunar cycle in days."
+  29.530588853)
+
+(def signs
+  "The twelve tropical signs, from 0 degrees of ecliptic longitude."
+  (list 'aries 'taurus 'gemini 'cancer 'leo 'virgo
+        'libra 'scorpio 'sagittarius 'capricorn 'aquarius 'pisces))
+
+(def sign-rulers
+  "The traditional ruler of each sign, in the order of `tod-sky-signs'."
+  (list 'mars 'venus 'mercury 'moon 'sun 'mercury
+        'venus 'mars 'jupiter 'saturn 'saturn 'jupiter))
+
+(def elements
+  "Elements of the signs, repeating from aries."
+  (list 'fire 'earth 'air 'water))
+
+(def modalities
+  "Modalities of the signs, repeating from aries."
+  (list 'cardinal 'fixed 'mutable))
+
+(def chaldean-order
+  "The classical planets from slowest to fastest."
+  (list 'saturn 'jupiter 'mars 'sun 'venus 'mercury 'moon))
+
+(def day-rulers
+  "The planet of each weekday, Sunday first."
+  (list 'sun 'moon 'mars 'mercury 'jupiter 'venus 'saturn))
+
+(def moon-phases
+  "Names of the eight lunar phases, starting at new moon.
+Each phase spans 45 degrees of elongation."
+  (list 'new-moon 'waxing-crescent 'first-quarter 'waxing-gibbous
+        'full-moon 'waning-gibbous 'last-quarter 'waning-crescent))
+
+(defn- rad
+  "Return DEGREES in radians."
+  [degrees]
+  (degrees-to-radians degrees))
+
+(defn- deg
+  "Return RADIANS in degrees."
+  [radians]
+  (radians-to-degrees radians))
+
+(defn- sind
+  "Return the sine of DEGREES."
+  [degrees]
+  (sin (rad degrees)))
+
+(defn- cosd
+  "Return the cosine of DEGREES."
+  [degrees]
+  (cos (rad degrees)))
+
+(defn julian-day
+  "Return the Julian day of the Lisp time TIME."
+  [time]
+  (+ 2440587.5 (/ (float-time time) 86400.0)))
+
+(defn- centuries
+  "Return Julian centuries since J2000.0 at TIME."
+  [time]
+  (/ (- (julian-day time) 2451545.0) 36525.0))
+
+(defn moon-ecliptic
+  "Return the moon's geocentric (LONGITUDE LATITUDE) in degrees at TIME."
+  [time]
+  (let [c (centuries time)
+        lp (+ 218.3164477 (* 481267.88123421 c))
+        d (+ 297.8501921 (* 445267.1114034 c))
+        m (+ 357.5291092 (* 35999.0502909 c))
+        mp (+ 134.9633964 (* 477198.8675055 c))
+        f (+ 93.2720950 (* 483202.0175233 c))
+        lon (+ lp
+               (* 6.288774 (sind mp))
+               (* 1.274027 (sind (- (* 2 d) mp)))
+               (* 0.658314 (sind (* 2 d)))
+               (* 0.213618 (sind (* 2 mp)))
+               (* -0.185116 (sind m))
+               (* -0.114332 (sind (* 2 f)))
+               (* 0.058793 (sind (- (* 2 d) (* 2 mp))))
+               (* 0.057066 (sind (- (* 2 d) m mp)))
+               (* 0.053322 (sind (+ (* 2 d) mp)))
+               (* 0.045758 (sind (- (* 2 d) m)))
+               (* -0.040923 (sind (- m mp)))
+               (* -0.034720 (sind d))
+               (* -0.030383 (sind (+ m mp))))
+        lat (+ (* 5.128122 (sind f))
+               (* 0.280602 (sind (+ mp f)))
+               (* 0.277693 (sind (- mp f)))
+               (* 0.173237 (sind (- (* 2 d) f)))
+               (* 0.055413 (sind (+ (- (* 2 d) f) mp)))
+               (* 0.046271 (sind (- (* 2 d) f mp))))]
+    (list (mod lon 360.0) lat)))
+
+(defn moon-longitude
+  "Return the moon's ecliptic longitude in degrees at TIME."
+  [time]
+  (first (moon-ecliptic time)))
+
+(defn elongation
+  "Return how far the moon has moved east of the sun at TIME, in degrees.
+0 is new moon, 90 first quarter, 180 full and 270 last quarter."
+  [time]
+  (mod (- (moon-longitude time) (sun/ecliptic-longitude time)) 360.0))
+
+(defn illumination
+  "Return the illuminated fraction of the moon's disc at TIME, in [0, 1]."
+  [time]
+  (/ (- 1.0 (cosd (elongation time))) 2.0))
+
+(defn moon-age
+  "Return the days since the last new moon at TIME."
+  [time]
+  (* synodic-month (/ (elongation time) 360.0)))
+
+(defn phase-for-elongation
+  "Return the lunar phase symbol for ELONGATION in degrees."
+  [elongation]
+  (nth moon-phases (mod (floor (/ (+ elongation 22.5) 45.0)) 8)))
+
+(defn moon-phase
+  "Return the lunar phase at TIME, one of `tod-sky-moon-phases'."
+  [time]
+  (phase-for-elongation (elongation time)))
+
+(defn- obliquity
+  "Return the mean obliquity of the ecliptic in degrees at TIME."
+  [time]
+  (- 23.4392911 (* 0.0130042 (centuries time))))
+
+(defn sidereal-degrees
+  "Return the local mean sidereal time at TIME and LONGITUDE, in degrees."
+  [time longitude]
+  (let [d (- (julian-day time) 2451545.0)]
+    (mod (+ 280.46061837 (* 360.98564736629 d) longitude) 360.0)))
+
+(defn ecliptic-altitude
+  "Return the altitude in degrees of the ecliptic point LON, LAT at TIME.
+LATITUDE and LONGITUDE give the observer, in degrees."
+  [time lon lat latitude longitude]
+  (let [eps (obliquity time)
+        ra (deg (atan (- (* (sind lon) (cosd eps)) (* (tan (rad lat)) (sind eps)))
+                      (cosd lon)))
+        declination (deg (asin (+ (* (sind lat) (cosd eps))
+                                  (* (cosd lat) (sind eps) (sind lon)))))
+        hour-angle (- (sidereal-degrees time longitude) ra)]
+    (deg (asin (+ (* (sind latitude) (sind declination))
+                  (* (cosd latitude) (cosd declination) (cosd hour-angle)))))))
+
+(defn moon-altitude
+  "Return the moon's geocentric altitude in degrees at TIME.
+LATITUDE and LONGITUDE are in degrees, north and east positive."
+  [time latitude longitude]
+  (let [pos (moon-ecliptic time)]
+    (ecliptic-altitude time (first pos) (second pos) latitude longitude)))
+
+(defn sign-index
+  "Return 0 to 11 for the tropical sign holding ecliptic LONGITUDE."
+  [longitude]
+  (mod (floor (/ (mod longitude 360.0) 30.0)) 12))
+
+(defn sign
+  "Return the tropical sign symbol holding ecliptic LONGITUDE."
+  [longitude]
+  (nth signs (sign-index longitude)))
+
+(defn sign-degree
+  "Return how many degrees LONGITUDE lies into its sign, in [0, 30)."
+  [longitude]
+  (mod (mod longitude 360.0) 30.0))
+
+(defn decan
+  "Return 1, 2 or 3 for the decan of its sign that LONGITUDE falls in."
+  [longitude]
+  (+ 1 (floor (/ (sign-degree longitude) 10.0))))
+
+(defn element
+  "Return the element of the sign holding ecliptic LONGITUDE."
+  [longitude]
+  (nth elements (mod (sign-index longitude) 4)))
+
+(defn modality
+  "Return the modality of the sign holding ecliptic LONGITUDE."
+  [longitude]
+  (nth modalities (mod (sign-index longitude) 3)))
+
+(defn sign-ruler
+  "Return the traditional ruler of the sign holding ecliptic LONGITUDE."
+  [longitude]
+  (nth sign-rulers (sign-index longitude)))
+
+(defn hour-ruler
+  "Return the planet ruling hour N, counted from 0 at sunrise.
+DAY-RULER is the planet of the weekday; hours follow Chaldean order."
+  [day-ruler n]
+  (let [start (seq-position chaldean-order day-ruler)]
+    (nth chaldean-order (mod (+ start n) 7))))
+
+(defn weekday-ruler
+  "Return the planet of the local weekday of TIME."
+  [time]
+  (nth day-rulers (decoded-time-weekday (decode-time time))))
+
+(defn- sun-events
+  "Return the sunrise and sunset events within a day either side of TIME.
+LATITUDE and LONGITUDE are in degrees."
+  [time latitude longitude]
+  (sun/events-around time latitude longitude (list -0.833)))
+
+(defn- clock-hours
+  "Return the planetary hour at TIME by equal clock hours from 06:00.
+Used where the sun neither rises nor sets."
+  [time]
+  (let [d (decode-time time)
+        start (encode-time (list 0 0 6 (decoded-time-day d) (decoded-time-month d)
+                                 (decoded-time-year d) nil -1 nil))
+        base (if (time-less-p time start) (time-subtract start 86400) start)
+        n (floor (/ (float-time (time-subtract time base)) 3600.0))
+        hour-start (time-add base (* 3600 n))]
+    {:planet (hour-ruler (weekday-ruler base) n)
+     :day-ruler (weekday-ruler base)
+     :hour (+ 1 n)
+     :daytime (< n 12)
+     :start hour-start
+     :end (time-add hour-start 3600)}))
+
+(defn planetary-hour
+  "Return the planetary hour at TIME for LATITUDE and LONGITUDE.
+The value is an alist with :planet, the ruler of the hour; :day-ruler,
+the planet of the day that began at the last sunrise; :hour, from 1 at
+sunrise to 24; :daytime; and :start and :end as Lisp times."
+  [time latitude longitude]
+  (let [events (sun-events time latitude longitude)
+        before (seq-filter (fn [e] (not (time-less-p time (get e :time)))) events)
+        prev (last before)
+        following (seq-find (fn [e] (time-less-p time (get e :time))) events)
+        rise (last (seq-filter (fn [e] (get e :rising)) before))]
+    (if (and prev following rise)
+      (let [from (get prev :time)
+            span (float-time (time-subtract (get following :time) from))
+            step (/ span 12.0)
+            index (min 11 (floor (/ (float-time (time-subtract time from)) step)))
+            daytime (get prev :rising)
+            n (+ index (if daytime 0 12))
+            ruler (weekday-ruler (get rise :time))
+            start (time-add from (* index step))]
+        {:planet (hour-ruler ruler n)
+         :day-ruler ruler
+         :hour (+ 1 n)
+         :daytime daytime
+         :start start
+         :end (time-add start step)})
+      (clock-hours time))))
+
+(defn at
+  "Return the sky at TIME for LATITUDE and LONGITUDE as an alist.
+Keys are :moon-phase, :illumination, :moon-age, :moon-altitude,
+:moon-up, :zodiac, :zodiac-degree, :decan, :element, :modality,
+:moon-sign, :planet, :day-ruler and :planetary-hour, the whole alist
+from `tod-sky-planetary-hour'."
+  [time latitude longitude]
+  (let [sun-lon (sun/ecliptic-longitude time)
+        moon-pos (moon-ecliptic time)
+        elong (mod (- (first moon-pos) sun-lon) 360.0)
+        moon-alt (ecliptic-altitude time (first moon-pos) (second moon-pos) latitude longitude)
+        hour (planetary-hour time latitude longitude)]
+    {:moon-phase (phase-for-elongation elong)
+     :illumination (/ (- 1.0 (cosd elong)) 2.0)
+     :moon-age (* synodic-month (/ elong 360.0))
+     :moon-altitude moon-alt
+     :moon-up (> moon-alt 0.0)
+     :zodiac (sign sun-lon)
+     :zodiac-degree (sign-degree sun-lon)
+     :decan (decan sun-lon)
+     :element (element sun-lon)
+     :modality (modality sun-lon)
+     :moon-sign (sign (first moon-pos))
+     :planet (get hour :planet)
+     :day-ruler (get hour :day-ruler)
+     :planetary-hour hour}))

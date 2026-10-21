@@ -35,7 +35,10 @@ built in, and lazywal plays video wallpapers; register more with
             [tod.theme :as theme]
             [tod.wallpaper :as wallpaper]
             [tod.palette :as palette]
-            [xdg]))
+            [xdg]
+            [tod.gradient :as gradient]
+            [tod.report :as report]
+            [tod.sky :as sky]))
 
 (defgroup tod nil
   "Themes and wallpapers that follow the sun and the seasons."
@@ -75,16 +78,16 @@ catches everything below the one before it."
     (:season autumn :theme (ef-cyprus ef-day modus-operandi-tinted modus-operandi))
     (:season winter :theme (ef-frost modus-operandi))
     (:theme modus-operandi :wallpaper t))
-  "Rules that turn the sun and the calendar into a look.
+  "Rules that turn the sun, the sky and the calendar into a look.
 Each rule is a plist of criteria and attributes.  Criteria are the keys
-of `tod-look-criteria': :phase, :season, :month, :rising, :period,
-:hour, :altitude and :when.  Attributes are:
-
+of `tod-look-criteria': :phase, :season, :month, :rising, :period, :hour,
+:altitude, :moon, :illumination, :zodiac, :moon-sign, :element, :planet,
+:day-ruler and :when.  Attributes are:
   :theme      a theme, or a list of alternatives tried in order
   :wallpaper  a file, a directory to pick from, or t for the layout
               under `tod-wallpaper-directory'
-  :palette    wal to build the theme from the wallpaper with pywal
-
+  :palette    wal to build the theme from the wallpaper with pywal,
+              sky to paint it from the sky every `tod-sky-interval'
 Each attribute comes from the first matching rule that sets it."
   :type '(repeat (plist :key-type symbol :value-type sexp))
   :group 'tod)
@@ -247,14 +250,17 @@ M is the moment, whose phase decides light or dark and warmth."
 (defn apply-look
   "Apply LOOK for the moment M: theme, wallpaper and palette.
 Parts that did not change are left alone, so applying the same look
-twice does nothing."
+twice does nothing.  A :palette of sky repaints from the sky itself."
   [look m]
   (let [wants-palette (eq (get look :palette) 'wal)
+        wants-sky (eq (get look :palette) 'sky)
         theme-name (get look :theme)
         file (when (get look :wallpaper)
                (wallpaper/choose-file (get look :wallpaper) m (layout-root)))]
-    (when (and theme-name (not wants-palette) (not (theme-overridden-p)))
+    (when (and theme-name (not wants-palette) (not wants-sky) (not (theme-overridden-p)))
       (theme/switch theme-name))
+    (when (and wants-sky (not (theme-overridden-p)))
+      (gradient/paint 'tod-sky m tod-warmth tod-minimum-contrast))
     (cond
       (and file (not (equal file tod--wallpaper)))
       (let [p (wallpaper/apply-file file tod-wallpaper-setters (cache-directory)
@@ -281,14 +287,18 @@ twice does nothing."
 
 (defn next-wakeup
   "Return the Lisp time tod should look again after TIME.
-It is the next phase boundary, the next local midnight or
+It is the next phase boundary, the next planetary hour, the next local
+midnight, the next sky repaint when the look's :palette is sky, or
 `tod-refresh-interval' from now, whichever comes first."
   [time]
-  (let [loc (location)
-        boundary (when loc (moment/next-change time (nth loc 0) (nth loc 1) tod-phases))
-        candidates (delq nil (list boundary
-                                   (moment/next-midnight time)
-                                   (time-add time tod-refresh-interval)))]
+  (let [now (or time (current-time))
+        loc (location)
+        boundary (when loc (moment/next-change now (nth loc 0) (nth loc 1) tod-phases))
+        hour (when loc (get (sky/planetary-hour now (nth loc 0) (nth loc 1)) :end))
+        candidates (delq nil (list boundary hour
+                                   (when (eq (get tod--look :palette) 'sky) (gradient/next-repaint now))
+                                   (moment/next-midnight now)
+                                   (time-add now tod-refresh-interval)))]
     (car (sort (fn [a b] (time-less-p a b)) candidates))))
 
 (defn- arm-timer
@@ -425,7 +435,7 @@ its own timed agenda line."
       (string-join (format-events day (nth loc 0) (nth loc 1)) "; "))))
 
 (defn ^:autoload describe
-  "Show the sun, the season, today's boundaries and the chosen look."
+  "Show the sun, the sky, today's boundaries and the chosen look."
   []
   (interactive)
   (let [m (current-moment nil)]
@@ -441,10 +451,15 @@ its own timed agenda line."
         (princ (format "Phase      %s\n" (phase-label (get m :phase))))
         (princ (format "Season     %s (%d%% through)\n" (phase-label (get m :season))
                        (round (* 100 (get m :season-progress)))))
+        (doseq [line (report/sky-lines m)]
+          (princ (str line "\n")))
         (princ (format "Periods    %s\n" (or (string-join (get m :periods) ", ") "")))
         (princ (format "Next check %s\n\n" (format-time-string "%F %R" wake)))
         (princ "Today\n")
         (doseq [line (format-events (moment/local-date nil) (nth loc 0) (nth loc 1))]
+          (princ (str "  " line "\n")))
+        (princ "\nPlanetary hours\n")
+        (doseq [line (report/hour-lines nil (nth loc 0) (nth loc 1) 6)]
           (princ (str "  " line "\n")))
         (princ "\nLook\n")
         (princ (format "  theme      %s\n" (or (get look :theme) "unchanged")))

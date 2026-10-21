@@ -1,0 +1,50 @@
+(ns tod.report
+  "Readable lines about the sky for `tod-describe'."
+  (:require [tod.sky :as sky]))
+
+(defn label
+  "Return a readable name for the symbol SYM, capitalised."
+  [sym]
+  (let [words (string-replace "-" " " (symbol-name sym))]
+    (str (upcase (substring words 0 1)) (substring words 1))))
+
+(defn sky-lines
+  "Return the lines describing the moon, the signs and the hour of MOMENT."
+  [moment]
+  (let [hour (get moment :planetary-hour)]
+    (list (format "Moon       %s, %d%% lit, %.1f days old, %s (%.0f° altitude)"
+                  (label (get moment :moon-phase))
+                  (round (* 100 (get moment :illumination)))
+                  (get moment :moon-age)
+                  (if (get moment :moon-up) "up" "down")
+                  (get moment :moon-altitude))
+          (format "Sun sign   %s %d°, decan %d, %s %s"
+                  (label (get moment :zodiac))
+                  (floor (get moment :zodiac-degree))
+                  (get moment :decan)
+                  (get moment :modality)
+                  (get moment :element))
+          (format "Moon sign  %s" (label (get moment :moon-sign)))
+          (format "Day ruler  %s" (label (get moment :day-ruler)))
+          (format "Hour       %s, planetary hour %d of 24 (%s to %s)"
+                  (label (get moment :planet))
+                  (get hour :hour)
+                  (format-time-string "%R" (get hour :start))
+                  (format-time-string "%R" (get hour :end))))))
+
+(defn hour-lines
+  "Return \"HH:MM Planet\" lines for the planetary hours from TIME.
+N hours are listed, at LATITUDE and LONGITUDE."
+  [time latitude longitude n]
+  (loop [from time
+         i 0
+         acc nil]
+    (if (>= i n)
+      (nreverse acc)
+      (let [h (sky/planetary-hour from latitude longitude)]
+        (recur (time-add (get h :end) 1)
+               (+ i 1)
+               (cons (format "%s %-8s%s" (format-time-string "%R" (get h :start))
+                             (label (get h :planet))
+                             (if (get h :daytime) "" " (night)"))
+                     acc))))))

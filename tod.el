@@ -54,6 +54,9 @@
 (require 'tod-wallpaper)
 (require 'tod-palette)
 (require 'xdg)
+(require 'tod-gradient)
+(require 'tod-report)
+(require 'tod-sky)
 
 (defgroup tod nil
   "Themes and wallpapers that follow the sun and the seasons."
@@ -100,16 +103,16 @@ catches everything below the one before it."
        :theme (ef-cyprus ef-day modus-operandi-tinted modus-operandi))
       (:season winter :theme (ef-frost modus-operandi))
       (:theme modus-operandi :wallpaper t))
-  "Rules that turn the sun and the calendar into a look.
+  "Rules that turn the sun, the sky and the calendar into a look.
 Each rule is a plist of criteria and attributes.  Criteria are the keys
-of `tod-look-criteria': :phase, :season, :month, :rising, :period,
-:hour, :altitude and :when.  Attributes are:
-
+of `tod-look-criteria': :phase, :season, :month, :rising, :period, :hour,
+:altitude, :moon, :illumination, :zodiac, :moon-sign, :element, :planet,
+:day-ruler and :when.  Attributes are:
   :theme      a theme, or a list of alternatives tried in order
   :wallpaper  a file, a directory to pick from, or t for the layout
               under `tod-wallpaper-directory'
-  :palette    wal to build the theme from the wallpaper with pywal
-
+  :palette    wal to build the theme from the wallpaper with pywal,
+              sky to paint it from the sky every `tod-sky-interval'
 Each attribute comes from the first matching rule that sets it."
   :type '(repeat (plist :key-type symbol :value-type sexp))
   :group 'tod)
@@ -280,16 +283,22 @@ M is the moment, whose phase decides light or dark and warmth."
 (defun tod-apply-look (look m)
   "Apply LOOK for the moment M: theme, wallpaper and palette.
 Parts that did not change are left alone, so applying the same look
-twice does nothing."
+twice does nothing.  A :palette of sky repaints from the sky itself."
   (let* ((wants-palette (eq (clel-get look :palette) 'wal))
+         (wants-sky (eq (clel-get look :palette) 'sky))
          (theme-name (clel-get look :theme))
          (file
           (when (clel-get look :wallpaper)
             (tod-wallpaper-choose-file (clel-get look :wallpaper)
                                        m
                                        (tod-layout-root)))))
-    (when (and theme-name (not wants-palette) (not (tod--theme-overridden-p)))
+    (when (and theme-name
+               (not wants-palette)
+               (not wants-sky)
+               (not (tod--theme-overridden-p)))
       (tod-theme-switch theme-name))
+    (when (and wants-sky (not (tod--theme-overridden-p)))
+      (tod-gradient-paint 'tod-sky m tod-warmth tod-minimum-contrast))
     (cond
      ((and file (not (equal file tod--wallpaper)))
       (let* ((p
@@ -332,20 +341,30 @@ twice does nothing."
 
 (defun tod-next-wakeup (time)
   "Return the Lisp time tod should look again after TIME.
-It is the next phase boundary, the next local midnight or
+It is the next phase boundary, the next planetary hour, the next local
+midnight, the next sky repaint when the look's :palette is sky, or
 `tod-refresh-interval' from now, whichever comes first."
-  (let* ((loc (tod-location))
+  (let* ((now (or time (current-time)))
+         (loc (tod-location))
          (boundary
           (when loc
-            (tod-moment-next-change time
+            (tod-moment-next-change now
                                     (clel-nth loc 0)
                                     (clel-nth loc 1)
                                     tod-phases)))
+         (hour
+          (when loc
+            (clel-get
+             (tod-sky-planetary-hour now (clel-nth loc 0) (clel-nth loc 1))
+             :end)))
          (candidates
           (delq nil
                 (list boundary
-                      (tod-moment-next-midnight time)
-                      (time-add time tod-refresh-interval)))))
+                      hour
+                      (when (eq (clel-get tod--look :palette) 'sky)
+                        (tod-gradient-next-repaint now))
+                      (tod-moment-next-midnight now)
+                      (time-add now tod-refresh-interval)))))
     (car (clel-sort (lambda (a b) (time-less-p a b)) candidates))))
 
 (defun tod--arm-timer ()
@@ -503,7 +522,7 @@ its own timed agenda line."
 
 ;;;###autoload
 (defun tod-describe ()
-  "Show the sun, the season, today's boundaries and the chosen look."
+  "Show the sun, the sky, today's boundaries and the chosen look."
   (interactive)
   (let* ((m (tod-current-moment nil)))
     (when (null m) (user-error "Set `tod-latitude' and `tod-longitude' first"))
@@ -524,6 +543,8 @@ its own timed agenda line."
          (format "Season     %s (%d%% through)\n"
                  (tod--phase-label (clel-get m :season))
                  (round (* 100 (clel-get m :season-progress)))))
+        (dolist (line (clel-seq (tod-report-sky-lines m)))
+          (princ (clel-str line "\n")))
         (princ
          (format "Periods    %s\n"
                  (or (string-join (clel-get m :periods) ", ") "")))
@@ -534,6 +555,14 @@ its own timed agenda line."
                   (tod--format-events (tod-moment-local-date nil)
                                       (clel-nth loc 0)
                                       (clel-nth loc 1))))
+          (princ (clel-str "  " line "\n")))
+        (princ "\nPlanetary hours\n")
+        (dolist (line
+                 (clel-seq
+                  (tod-report-hour-lines nil
+                                         (clel-nth loc 0)
+                                         (clel-nth loc 1)
+                                         6)))
           (princ (clel-str "  " line "\n")))
         (princ "\nLook\n")
         (princ

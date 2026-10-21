@@ -76,6 +76,55 @@ either end means unbounded."
     (and (or (null lo) (>= a lo))
          (or (null hi) (< a hi)))))
 
+(defn match-moon
+  "Return non-nil when VALUE names the lunar phase of MOMENT.
+VALUE is a phase symbol such as full-moon, or a list of them."
+  [value moment]
+  (member-or-eq value (get moment :moon-phase)))
+
+(defn match-zodiac
+  "Return non-nil when VALUE names the sun's tropical sign in MOMENT.
+VALUE is a sign symbol such as scorpio, or a list of them."
+  [value moment]
+  (member-or-eq value (get moment :zodiac)))
+
+(defn match-moon-sign
+  "Return non-nil when VALUE names the moon's tropical sign in MOMENT.
+VALUE is a sign symbol, or a list of them."
+  [value moment]
+  (member-or-eq value (get moment :moon-sign)))
+
+(defn match-element
+  "Return non-nil when VALUE names the element of the sun's sign.
+VALUE is fire, earth, air or water, or a list of them; MOMENT supplies
+the sign."
+  [value moment]
+  (member-or-eq value (get moment :element)))
+
+(defn match-planet
+  "Return non-nil when VALUE names the planet ruling MOMENT's hour.
+VALUE is a classical planet symbol, or a list of them."
+  [value moment]
+  (member-or-eq value (get moment :planet)))
+
+(defn match-day-ruler
+  "Return non-nil when VALUE names the planet ruling MOMENT's day.
+VALUE is a classical planet symbol, or a list of them."
+  [value moment]
+  (member-or-eq value (get moment :day-ruler)))
+
+(defn match-illumination
+  "Return non-nil when the moon's lit fraction in MOMENT lies in VALUE.
+VALUE is (MIN MAX) between 0 and 1: MIN inclusive, MAX exclusive, and
+nil for either end means unbounded."
+  [value moment]
+  (let [a (get moment :illumination)
+        lo (nth value 0)
+        hi (nth value 1)]
+    (and a
+         (or (null lo) (>= a lo))
+         (or (null hi) (< a hi)))))
+
 (defn match-predicate
   "Return the result of calling the function VALUE with MOMENT."
   [value moment]
@@ -89,6 +138,13 @@ either end means unbounded."
         (cons :period #'match-period)
         (cons :hour #'match-hour)
         (cons :altitude #'match-altitude)
+        (cons :moon #'match-moon)
+        (cons :illumination #'match-illumination)
+        (cons :zodiac #'match-zodiac)
+        (cons :moon-sign #'match-moon-sign)
+        (cons :element #'match-element)
+        (cons :planet #'match-planet)
+        (cons :day-ruler #'match-day-ruler)
         (cons :when #'match-predicate))
   "Alist of rule criteria: (KEY . FUNCTION).
 FUNCTION is called with the rule's value for KEY and the moment, and
